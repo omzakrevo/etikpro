@@ -1,0 +1,59 @@
+{
+  "modeles": [
+    {
+      "kind": "document",
+      "id": "boucherie_rouge",
+      "name": "Boucherie rouge",
+      "docTypes": ["devis", "proforma", "facture"],
+      "primaryColor": "#B22222",
+      "accentColor": "#FBECEC",
+      "textColor": "#222222",
+      "font": "helvetica",
+      "tableStyle": "striped",
+      "titleStyle": "band",
+      "titleAlign": "right",
+      "showLogo": true,
+      "showCompanyBlock": true,
+      "headerMaxHeightMm": 35,
+      "footerMaxHeightMm": 22,
+      "marginMm": 12,
+      "fontSize": 9.5,
+      "showAmountInWords": true,
+      "showSignatures": true,
+      "signatureLeft": "Le client (bon pour accord)",
+      "signatureRight": "Le gérant",
+      "footerText": "Merci pour votre confiance !"
+    },
+    {
+      "kind": "document",
+      "id": "bordereau_vert",
+      "name": "Bordereau vert",
+      "docTypes": ["bordereau", "decharge"],
+      "primaryColor": "#1B7F5B",
+      "accentColor": "#E6F4EE",
+      "font": "helvetica",
+      "tableStyle": "grid",
+      "titleStyle": "underline",
+      "titleAlign": "center",
+      "showAmountInWords": false,
+      "footerText": "Toute réclamation doit être faite à la livraison."
+    },
+    {
+      "kind": "etiquette",
+      "id": "abattoir_qr",
+      "name": "Abattoir + QR",
+      "companyBand": true,
+      "showPhone": true,
+      "showQr": true,
+      "showBorder": false,
+      "showProduct": true,
+      "showWeight": true,
+      "showLot": true,
+      "showPrice": false,
+      "fontScale": 1,
+      "expiryLabel": "À consommer avant le",
+      "tempLabel": "À conserver entre",
+      "durationLabel": "Durée de conservation"
+    }
+  ]
+}

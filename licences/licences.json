@@ -1,0 +1,16 @@
+{
+  "app": "ETIKPRO",
+  "licences": [
+    {
+      "hash": "cee9480a7a49cbf1f6a5f43a86d67240eca3796122980349d041f4a891f6ae61",
+      "entreprise": "OMZAKREVO DÉMO",
+      "expire": "2027-12-31",
+      "plan": "complet",
+      "modules": [],
+      "actif": true,
+      "appareils": [],
+      "creeLe": "2026-10-26"
+    }
+  ],
+  "misAJour": "2026-10-26"
+}

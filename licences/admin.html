@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ETIKPRO – Licences</title>
+<style>
+  :root { --b:#14427A; --o:#E8731C; --bg:#f4f6fa; --t:#1d2430; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--t); }
+  header { background:var(--b); color:#fff; padding:18px 16px; }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; opacity:.85; font-size:13px; }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  .card { background:#fff; border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:10px; border:1px solid #cfd6e2; border-radius:9px; font-size:15px; font-family:inherit; }
+  textarea { font-family: ui-monospace, Consolas, monospace; font-size:12px; min-height:150px; }
+  button { margin-top:14px; width:100%; padding:12px; border:0; border-radius:10px; background:var(--b); color:#fff; font-size:15px; font-weight:700; cursor:pointer; }
+  button.alt { background:var(--o); }
+  .key { font: 700 22px ui-monospace, Consolas, monospace; letter-spacing:1px; text-align:center; padding:14px; background:#fff7ef; border:2px dashed var(--o); border-radius:10px; margin-top:12px; word-break:break-all; }
+  .hint { font-size:12px; color:#5b6575; }
+  .ok { color:#1b7f5b; font-weight:700; } .ko { color:#c0392b; font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ETIKPRO — Gestion des licences</h1>
+  <p>OMZAKREVO INFORMATIQUE · Toujours une solution !</p>
+</header>
+<main>
+  <div class="card">
+    <h3 style="margin-top:0">1. Nouvelle licence</h3>
+    <label for="ent">Entreprise cliente</label>
+    <input id="ent" placeholder="Volaille du Faso">
+    <label for="exp">Date d'expiration</label>
+    <input id="exp" type="date">
+    <label for="plan">Formule</label>
+    <select id="plan">
+      <option value="complet">Complète (étiquettes + documents)</option>
+      <option value="etiquettes">Étiquettes seulement</option>
+    </select>
+    <label for="dev">Identifiants d'appareils autorisés (optionnel, séparés par des virgules)</label>
+    <input id="dev" placeholder="Laisser vide = tous les appareils">
+    <button onclick="gen()">Générer la clé</button>
+    <div id="out" style="display:none">
+      <div class="key" id="key"></div>
+      <p class="hint">Donnez cette clé au client. Elle n'est stockée nulle part en clair : notez-la.</p>
+      <label>Bloc à ajouter dans <b>licences.json</b> (dans la liste "licences")</label>
+      <textarea id="json" readonly></textarea>
+      <button class="alt" onclick="copyJson()">Copier le bloc</button>
+      <p class="hint">Sur GitHub : dépôt <b>etikpro-licences</b> › licences.json › ✏️ Modifier › collez le bloc dans la liste (n'oubliez pas la virgule entre deux blocs) › <i>Commit changes</i>.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">2. Retrouver une licence existante</h3>
+    <p class="hint">Pour prolonger ou suspendre : calculez l'empreinte de la clé, cherchez-la dans licences.json, puis modifiez "expire" ou "actif".</p>
+    <label for="k2">Clé de licence</label>
+    <input id="k2" placeholder="ETK-XXXX-XXXX-XXXX-XXXX">
+    <button onclick="hashOnly()">Calculer l'empreinte</button>
+    <p id="h2" class="hint" style="word-break:break-all"></p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">3. Vérifier le fichier publié</h3>
+    <label for="url">Adresse du fichier</label>
+    <input id="url" value="https://raw.githubusercontent.com/omzakrevo/etikpro-licences/main/licences.json">
+    <button onclick="check()">Vérifier</button>
+    <p id="chk"></p>
+  </div>
+</main>
+<script>
+  const SALT = 'ETIKPRO:';
+  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const norm = k => k.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  async function sha256(s) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  function newKey() {
+    const r = new Uint32Array(16); crypto.getRandomValues(r);
+    const c = [...r].map(v => CHARS[v % CHARS.length]).join('');
+    return 'ETK-' + c.slice(0,4) + '-' + c.slice(4,8) + '-' + c.slice(8,12) + '-' + c.slice(12,16);
+  }
+  const d = new Date(); d.setFullYear(d.getFullYear() + 1);
+  document.getElementById('exp').value = d.toISOString().slice(0, 10);
+
+  async function gen() {
+    const ent = document.getElementById('ent').value.trim();
+    const exp = document.getElementById('exp').value;
+    if (!ent || !exp) { alert('Indiquez l\'entreprise et la date d\'expiration.'); return; }
+    const plan = document.getElementById('plan').value;
+    const devs = document.getElementById('dev').value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    const key = newKey();
+    const entry = {
+      hash: await sha256(SALT + norm(key)),
+      entreprise: ent, expire: exp, plan,
+      modules: plan === 'etiquettes' ? ['etiquettes'] : [],
+      actif: true, appareils: devs,
+      creeLe: new Date().toISOString().slice(0, 10)
+    };
+    document.getElementById('key').textContent = key;
+    document.getElementById('json').value = JSON.stringify(entry, null, 2);
+    document.getElementById('out').style.display = 'block';
+  }
+  function copyJson() {
+    navigator.clipboard.writeText(document.getElementById('json').value);
+  }
+  async function hashOnly() {
+    const k = document.getElementById('k2').value;
+    document.getElementById('h2').textContent = k ? await sha256(SALT + norm(k)) : '';
+  }
+  async function check() {
+    const p = document.getElementById('chk');
+    try {
+      const r = await fetch(document.getElementById('url').value + '?t=' + Date.now());
+      const j = await r.json();
+      const n = (j.licences || []).length;
+      const act = (j.licences || []).filter(e => e.actif !== false && e.expire >= new Date().toISOString().slice(0,10)).length;
+      p.innerHTML = '<span class="ok">Fichier valide ✔</span> — ' + n + ' licence(s), dont ' + act + ' active(s).';
+    } catch (e) {
+      p.innerHTML = '<span class="ko">Erreur : ' + e.message + '</span> (JSON invalide ou dépôt privé ?)';
+    }
+  }
+</script>
+</body>
+</html>
