@@ -272,6 +272,79 @@ void main() {
       }
     });
 
+    test('facture avec sticker, cachet, signataires et infos client', () async {
+      // cachet bleu circulaire
+      final st = img.Image(width: 400, height: 400);
+      img.fill(st, color: img.ColorRgb8(250, 250, 246));
+      for (var r = 150; r < 158; r++) {
+        img.drawCircle(st, x: 200, y: 200, radius: r, color: img.ColorRgb8(25, 55, 170));
+      }
+      for (var r = 110; r < 114; r++) {
+        img.drawCircle(st, x: 200, y: 200, radius: r, color: img.ColorRgb8(25, 55, 170));
+      }
+      img.drawString(st, 'VOLAILLE', font: img.arial24, x: 150, y: 175, color: img.ColorRgb8(25, 55, 170));
+      img.drawString(st, 'DU FASO', font: img.arial24, x: 155, y: 205, color: img.ColorRgb8(25, 55, 170));
+      final c = Company(
+        name: 'Volaille du Faso',
+        phone: '70 12 34 56',
+        address: 'Ouagadougou, secteur 15',
+        ifu: '00012345X',
+        stampB64: prepareStamp(img.encodePng(st)),
+      );
+      final photo = loadStickerPhoto(File('test/fixtures/sticker_wood.jpg').readAsBytesSync());
+      final d = sampleDoc(DocType.facture)
+        ..clientExtra = 'RCCM : BF-OUA-2020-B-555\nBP 1234 Ouagadougou 01\nContact : Mme TRAORÉ'
+        ..signatures = Signatories(
+            leftTitle: 'Le client', rightTitle: 'Le Responsable commercial', rightName: 'M. OUÉDRAOGO Paul')
+        ..showStamp = true
+        ..stickerB64 = cropSticker(photo.image, photo.auto);
+      for (final pos in ['right', 'left', 'center']) {
+        d.stickerPos = pos;
+        final bytes = await buildDocPdf(d, c, builtinDocTemplates[pos == 'left' ? 1 : 0]);
+        File('build/apercus/facture_sticker_$pos.pdf').writeAsBytesSync(bytes);
+        expect(bytes.length, greaterThan(20000));
+      }
+      // signature de gauche masquée
+      d.signatures!.showLeft = false;
+      expect((await buildDocPdf(d, c, builtinDocTemplates[0])).length, greaterThan(20000));
+    });
+
+    test('conversion : signataires et cachet du type cible', () async {
+      final s = AppStore.I;
+      s.company.stampB64 = 'x';
+      s.company.signatories['bordereau'] = Signatories(leftTitle: 'Réceptionnaire', rightTitle: 'Le magasinier');
+      final fa = CommercialDoc(type: DocType.facture, clientName: 'Z', stickerB64: 'abc');
+      await s.upsertDoc(fa);
+      final bl = await s.convertDoc(fa, DocType.bordereau);
+      expect(bl.signatures!.rightTitle, 'Le magasinier');
+      expect(bl.showStamp, isFalse); // bordereau non coché par défaut
+      expect(bl.stickerB64, isNull);
+      s.company.stampB64 = null;
+    });
+
+    test('étiquettes libres', () async {
+      final logo = base64Decode(prepareLabelLogo(File('assets/logo/logo_icon.png').readAsBytesSync()));
+      final cases = {
+        'fragile': FreeLabelData(
+            company: 'Volaille du Faso',
+            phone: '70 12 34 56',
+            title: 'FRAGILE',
+            lines: ['Commande : N° 2026-118', 'Destinataire : Hôtel Silmandé', 'Tél : 76 00 00 00'],
+            logo: logo),
+        'promo': const FreeLabelData(title: 'PROMO -20 %', lines: ['Prix : 2 800 F', 'Valable jusqu’au 31/10'], align: 'center', border: true),
+        'qr': const FreeLabelData(
+            company: 'Volaille du Faso', title: 'Colis 12/40', lines: ['Client : SUPER MARCHÉ'], qr: 'https://wa.me/22670123456'),
+        'texte': const FreeLabelData(lines: ['Une seule ligne de texte libre'], companyBand: false),
+      };
+      for (final e in cases.entries) {
+        for (final f in [builtinLabelFormats[1], builtinLabelFormats[0], builtinLabelFormats[5]]) {
+          final b = await buildFreeLabelsPdf(data: e.value, format: f, copies: 3);
+          expect(b.length, greaterThan(500));
+          File('build/apercus/libre_${e.key}_${f.id}.pdf').writeAsBytesSync(b);
+        }
+      }
+    });
+
     test('en-tête et pied de page en image', () async {
       img.Image banner(int w, int h, img.Color bg, String txt) {
         final im = img.Image(width: w, height: h);

@@ -7,6 +7,9 @@ import '../../core/store.dart';
 import '../../docs/doc_pdf.dart';
 import '../common.dart';
 import 'doc_edit_screen.dart';
+import 'docs_screen.dart';
+import 'sticker_screen.dart';
+import '../theme.dart';
 
 class DocViewScreen extends StatelessWidget {
   final String docId;
@@ -20,35 +23,40 @@ class DocViewScreen extends StatelessWidget {
       builder: (context, _) {
         final m = s.docs.where((e) => e.id == docId);
         if (m.isEmpty) {
-          return Scaffold(appBar: AppBar(), body: const Center(child: Text('Document supprimé')));
+          return Scaffold(
+            appBar: eAppBar(),
+            body: const Center(child: Text('Document supprimé')),
+          );
         }
         final d = m.first;
         final t = s.templateById(d.templateId);
         final fileName = '${d.number}.pdf';
 
         Future<void> convert(DocType target) async {
-          if (!await confirm(context, 'Transformer en ${target.label}',
-              'Un nouveau document « ${target.label} » sera créé à partir de ${d.number}.',
-              ok: 'Transformer')) {
+          if (!await confirm(
+            context,
+            'Transformer en ${target.label}',
+            'Un nouveau document « ${target.label} » sera créé à partir de ${d.number}.',
+            ok: 'Transformer',
+          )) {
             return;
           }
           final n = await s.convertDoc(d, target);
           if (context.mounted) {
-            Navigator.pushReplacement(
-                context, MaterialPageRoute(builder: (_) => DocViewScreen(docId: n.id)));
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DocViewScreen(docId: n.id)));
             snack(context, '${target.label} ${n.number} créé(e)');
           }
         }
 
         return Scaffold(
-          appBar: AppBar(
+          appBar: eAppBar(
             title: Text('${d.type.label} ${d.number}'),
             actions: [
               IconButton(
                 tooltip: 'Modifier',
                 icon: const Icon(Icons.edit),
-                onPressed: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => DocEditScreen(doc: d))),
+                onPressed: () =>
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => DocEditScreen(doc: d))),
               ),
               PopupMenuButton<String>(
                 onSelected: (v) async {
@@ -65,15 +73,22 @@ class DocViewScreen extends StatelessWidget {
                       ..status = 'brouillon';
                     await s.upsertDoc(copy);
                     if (context.mounted) {
-                      Navigator.pushReplacement(context,
-                          MaterialPageRoute(builder: (_) => DocViewScreen(docId: copy.id)));
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => DocViewScreen(docId: copy.id)),
+                      );
                     }
                   } else if (v == 'paid') {
                     d.status = 'payé';
                     await s.upsertDoc(d);
                   } else if (v == 'del') {
-                    if (await confirm(context, 'Supprimer', 'Supprimer ${d.number} ?',
-                        danger: true, ok: 'Supprimer')) {
+                    if (await confirm(
+                      context,
+                      'Supprimer',
+                      'Supprimer ${d.number} ?',
+                      danger: true,
+                      ok: 'Supprimer',
+                    )) {
                       await s.deleteDoc(d.id);
                       if (context.mounted) Navigator.pop(context);
                     }
@@ -89,62 +104,101 @@ class DocViewScreen extends StatelessWidget {
                       ),
                     ),
                   const PopupMenuItem(
-                      value: 'dup', child: ListTile(leading: Icon(Icons.copy), title: Text('Dupliquer'))),
+                    value: 'dup',
+                    child: ListTile(leading: Icon(Icons.copy), title: Text('Dupliquer')),
+                  ),
                   if (d.type == DocType.facture && d.status != 'payé')
                     const PopupMenuItem(
-                        value: 'paid',
-                        child: ListTile(leading: Icon(Icons.paid), title: Text('Marquer payée'))),
+                      value: 'paid',
+                      child: ListTile(leading: Icon(Icons.paid), title: Text('Marquer payée')),
+                    ),
                   const PopupMenuItem(
-                      value: 'del',
-                      child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Supprimer'))),
+                    value: 'del',
+                    child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Supprimer')),
+                  ),
                 ],
               ),
             ],
           ),
-          body: Column(children: [
-            if (d.type.convertTargets.isNotEmpty || d.sourceNumber != null || d.convertedTo.isNotEmpty)
+          body: Column(
+            children: [
               Material(
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                color: Colors.white,
+                elevation: 3,
+                shadowColor: Colors.black26,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(children: [
-                    if (d.sourceNumber != null)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: Chip(
-                            avatar: const Icon(Icons.call_split, size: 16),
-                            label: Text('Issu de ${d.sourceNumber}')),
-                      ),
-                    for (final n in d.convertedTo)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Chip(avatar: const Icon(Icons.arrow_forward, size: 16), label: Text(n)),
-                      ),
-                    for (final target in d.type.convertTargets)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilledButton.tonalIcon(
-                          onPressed: () => convert(target),
-                          icon: const Icon(Icons.transform, size: 18),
-                          label: Text('→ ${target.label}'),
+                  child: Row(
+                    children: [
+                      if (d.type == DocType.facture)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: EColors.green),
+                            onPressed: () async {
+                              final r = await captureSticker(context);
+                              if (r == null) return;
+                              d.stickerB64 = r;
+                              await s.upsertDoc(d);
+                            },
+                            icon: Icon(d.stickerB64 == null ? Icons.add_a_photo : Icons.refresh),
+                            label: Text(d.stickerB64 == null ? 'Coller le sticker' : 'Changer le sticker'),
+                          ),
                         ),
-                      ),
-                  ]),
+                      if (s.company.stampB64 != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            avatar: const Icon(Icons.approval, size: 18),
+                            label: const Text('Cachet'),
+                            selected: d.showStamp,
+                            onSelected: (v) async {
+                              d.showStamp = v;
+                              await s.upsertDoc(d);
+                            },
+                          ),
+                        ),
+                      if (d.sourceNumber != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: Chip(
+                            avatar: const Icon(Icons.call_split, size: 16),
+                            label: Text('Issu de ${d.sourceNumber}'),
+                          ),
+                        ),
+                      for (final n in d.convertedTo)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Chip(avatar: const Icon(Icons.arrow_forward, size: 16), label: Text(n)),
+                        ),
+                      for (final target in d.type.convertTargets)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: docColor(target)),
+                            onPressed: () => convert(target),
+                            icon: const Icon(Icons.transform, size: 18),
+                            label: Text('→ ${target.label}'),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            Expanded(
-              child: PdfPreview(
-                key: ValueKey(d.toJson().toString() + t.id),
-                build: (_) => buildDocPdf(d, s.company, t),
-                initialPageFormat: PdfPageFormat.a4,
-                canChangeOrientation: false,
-                canChangePageFormat: false,
-                canDebug: false,
-                pdfFileName: fileName,
+              Expanded(
+                child: PdfPreview(
+                  key: ValueKey(d.toJson().toString() + t.id),
+                  build: (_) => buildDocPdf(d, s.company, t),
+                  initialPageFormat: PdfPageFormat.a4,
+                  canChangeOrientation: false,
+                  canChangePageFormat: false,
+                  canDebug: false,
+                  pdfFileName: fileName,
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
         );
       },
     );

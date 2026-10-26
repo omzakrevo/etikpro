@@ -32,7 +32,8 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 300));
     });
     await t.pumpAndSettle();
-    expect(find.text('Imprimer'), findsOneWidget);
+    expect(find.text('Mes produits'), findsOneWidget);
+    expect(find.byIcon(Icons.print), findsWidgets);
 
     for (final tab in ['Documents', 'Clients', 'Réglages']) {
       await t.tap(find.text(tab).last);
@@ -72,7 +73,11 @@ void main() {
     final d = CommercialDoc(type: DocType.devis, lines: [DocLine(designation: 'Poulet', qty: 3, unitPrice: 3500)]);
     await t.pumpWidget(_app(DocEditScreen(doc: d)));
     await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('TOTAL'), 300, scrollable: find.byType(Scrollable).first);
     expect(find.text('10 500 FCFA'), findsWidgets);
+    // nouvelles sections
+    await t.scrollUntilVisible(find.text('Signataires et cachet'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Signataire de droite (entreprise)'), findsOneWidget);
     t.view.resetPhysicalSize();
   });
 

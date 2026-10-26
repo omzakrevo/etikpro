@@ -14,6 +14,8 @@ import '../../label/bt.dart';
 import '../../label/label_pdf.dart';
 import '../../label/label_printer.dart';
 import '../common.dart';
+import 'print_widgets.dart';
+import '../theme.dart';
 
 class LabelPrintScreen extends StatefulWidget {
   final Product product;
@@ -95,6 +97,11 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
       ));
 
   Future<void> _printBluetooth() async {
+    if (s.printer.btAddress == null) {
+      await showPrinterSheet(context);
+      if (s.printer.btAddress == null || !mounted) return;
+      setState(() {});
+    }
     setState(() => _busy = true);
     try {
       final err = await printLabelBluetooth(
@@ -144,6 +151,8 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
     final isA4 = _format.mode == PrintMode.a4;
 
     final form = ListView(padding: const EdgeInsets.all(16), children: [
+      const PrinterBar(),
+      const SizedBox(height: 14),
       Row(children: [
         Expanded(
           child: _DateTile(
@@ -235,25 +244,11 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
           label: const Text('Ajoutez un logo dans Réglages › Mon entreprise'),
         ),
       const SizedBox(height: 12),
-      Row(children: [
-        const Text('Nombre d’étiquettes', style: TextStyle(fontWeight: FontWeight.w600)),
-        const Spacer(),
-        IconButton.filledTonal(
-            onPressed: _copies > 1 ? () => setState(() => _copies--) : null,
-            icon: const Icon(Icons.remove)),
-        SizedBox(
-            width: 56,
-            child: Text('$_copies',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700))),
-        IconButton.filledTonal(
-            onPressed: () => setState(() => _copies++), icon: const Icon(Icons.add)),
-      ]),
-      Wrap(spacing: 6, children: [
-        for (final n in [1, 5, 10, 20, 50, if (isA4) _format.perSheet])
-          ChoiceChip(
-              label: Text('$n'), selected: _copies == n, onSelected: (_) => setState(() => _copies = n)),
-      ]),
+      QuantityPicker(
+        value: _copies,
+        quick: [1, 5, 10, 20, 50, 100, if (isA4) _format.perSheet],
+        onChanged: (v) => setState(() => _copies = v),
+      ),
       if (isA4) ...[
         const SizedBox(height: 12),
         Row(children: [
@@ -269,15 +264,13 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
       ],
       const SizedBox(height: 20),
       if (btSupported && !isA4)
-        FilledButton.icon(
+        GradientButton(
           onPressed: _busy ? null : _printBluetooth,
           icon: _busy
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.bluetooth),
-          label: Text(s.printer.btName == null
-              ? 'Imprimer en Bluetooth'
-              : 'Imprimer sur ${s.printer.btName}'),
-          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+          label: 'Imprimer $_copies étiquette${_copies > 1 ? 's' : ''}',
         ),
       const SizedBox(height: 8),
       OutlinedButton.icon(
@@ -291,7 +284,7 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
     ]);
 
     final preview = Container(
-      color: cs.surfaceContainerHighest,
+      color: const Color(0xFFDDE5F0),
       child: PdfPreview(
         key: ValueKey('$_showLogo$_formatId$_styleId$_prod$_exp${_weight.text}${_lot.text}${_extra.text}$_skip${isA4 ? _copies : 1}'),
         build: (_) => buildLabelsPdf(
@@ -312,7 +305,7 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.product.name)),
+      appBar: eAppBar(title: Text(widget.product.name)),
       body: wide
           ? Row(children: [
               SizedBox(width: 440, child: form),

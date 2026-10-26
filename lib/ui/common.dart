@@ -85,7 +85,7 @@ class EmptyState extends StatelessWidget {
       {super.key, required this.icon, required this.title, required this.text, this.action});
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 56, color: Theme.of(context).colorScheme.outline),
@@ -99,6 +99,8 @@ class EmptyState extends StatelessWidget {
         ),
       );
 }
+
+Uint8List base64ToBytes(String b64) => base64Decode(b64);
 
 double parseNum(String s) =>
     double.tryParse(s.replaceAll(' ', '').replaceAll(',', '.')) ?? 0;

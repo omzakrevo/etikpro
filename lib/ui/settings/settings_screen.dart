@@ -7,6 +7,7 @@ import '../common.dart';
 import 'company_screen.dart';
 import 'printer_screen.dart';
 import 'templates_screen.dart';
+import '../theme.dart';
 
 class SettingsScreen extends StatelessWidget {
   final VoidCallback onLogout;
@@ -20,12 +21,12 @@ class SettingsScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: s,
       builder: (context, _) => Scaffold(
-        appBar: AppBar(title: const Text('Réglages')),
+        appBar: eAppBar(title: const Text('Réglages')),
         body: FormWidth(
           child: ListView(padding: const EdgeInsets.all(12), children: [
             Card(
               child: ListTile(
-                leading: const Icon(Icons.business),
+                leading: const IconBadge(Icons.business, color: EColors.blue),
                 title: const Text('Mon entreprise'),
                 subtitle: Text(s.company.name.isEmpty
                     ? 'Nom, téléphone, logo, en-tête et pied de page'
@@ -36,7 +37,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             Card(
               child: ListTile(
-                leading: const Icon(Icons.print),
+                leading: const IconBadge(Icons.print, color: EColors.orange),
                 title: const Text('Imprimante'),
                 subtitle: Text(s.printer.btName ?? 'Aucune imprimante Bluetooth choisie'),
                 trailing: const Icon(Icons.chevron_right),
@@ -45,7 +46,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             Card(
               child: ListTile(
-                leading: const Icon(Icons.dashboard_customize_outlined),
+                leading: const IconBadge(Icons.dashboard_customize, color: EColors.purple),
                 title: const Text('Modèles'),
                 subtitle: Text(
                     '${s.allDocTemplates.length} modèles de documents • ${s.allLabelStyles.length} styles d’étiquettes • import JSON'),
@@ -57,7 +58,7 @@ class SettingsScreen extends StatelessWidget {
             Card(
               child: Column(children: [
                 ListTile(
-                  leading: const Icon(Icons.upload_file),
+                  leading: const IconBadge(Icons.upload_file, color: EColors.teal, size: 38),
                   title: const Text('Exporter toutes mes données'),
                   subtitle: const Text('Fichier JSON (produits, clients, documents, modèles)'),
                   onTap: () async {
@@ -69,7 +70,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.download),
+                  leading: const IconBadge(Icons.download, color: EColors.green, size: 38),
                   title: const Text('Restaurer une sauvegarde'),
                   subtitle: const Text('Remplace les données actuelles'),
                   onTap: () async {
@@ -94,8 +95,8 @@ class SettingsScreen extends StatelessWidget {
             Card(
               child: Column(children: [
                 ListTile(
-                  leading: Icon(Icons.verified,
-                      color: (lic?.daysLeft ?? 0) < 15 ? Colors.orange : Colors.green),
+                  leading: IconBadge(Icons.verified,
+                      color: (lic?.daysLeft ?? 0) < 15 ? EColors.orange : EColors.green, size: 38),
                   title: Text(lic?.company.isNotEmpty == true ? lic!.company : 'Licence active'),
                   subtitle: Text(lic == null
                       ? ''
@@ -103,13 +104,13 @@ class SettingsScreen extends StatelessWidget {
                           '(${lic.daysLeft} jours)${lic.offline ? ' • vérifiée hors ligne' : ''}'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.phone_android),
+                  leading: const IconBadge(Icons.phone_android, color: Colors.blueGrey, size: 38),
                   title: const Text("Identifiant de l'appareil"),
                   subtitle: SelectableText(LicenceService.I.deviceId),
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.logout),
+                  leading: const IconBadge(Icons.logout, color: EColors.red, size: 38),
                   title: const Text('Changer de licence'),
                   onTap: () async {
                     if (await confirm(context, 'Changer de licence',

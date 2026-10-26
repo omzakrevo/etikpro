@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/models.dart';
 import '../../core/store.dart';
 import '../common.dart';
+import '../theme.dart';
 
 class ProductEditScreen extends StatefulWidget {
   final Product product;
@@ -42,7 +43,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
   Widget build(BuildContext context) {
     final styles = AppStore.I.allLabelStyles;
     return Scaffold(
-      appBar: AppBar(
+      appBar: eAppBar(
         title: Text(_isNew ? 'Nouveau produit' : 'Modifier le produit'),
         actions: [
           if (!_isNew)

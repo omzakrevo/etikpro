@@ -29,7 +29,9 @@ Marges de 1 mm : l'étiquette se colle directement sur le sachet. Les lignes tro
 | Imprimante ticket thermique (ESC/POS) | 58 mm, 80 mm (papier adhésif) | Directe depuis Android / Windows |
 | Planches A4 autocollantes | 14, 21, 24 ou 40 étiquettes par feuille | Imprimante classique (PDF) |
 
-- Nombre de copies au choix (1, 5, 10, 20, 50…).
+- **Étiquette libre** : titre + lignes au choix (« Clé : valeur » met la valeur en gras), QR code optionnel, logo, cadre, texte centré, taille du texte ; modèles d'étiquettes libres enregistrables.
+- **Nombre d'étiquettes** : saisie directe (jusqu'à 5 000), boutons −/+ et raccourcis 1, 5, 10, 20, 50, 100.
+- **Connexion Bluetooth rapide** : bandeau d'état de l'imprimante sur l'écran d'impression ; un appui ouvre la liste des imprimantes appairées (les imprimantes sont mises en tête), « Connecter » en un geste, bouton « Appairer une nouvelle imprimante » qui ouvre les réglages Bluetooth, étiquette de test. Si aucune imprimante n'est choisie, le bouton Imprimer ouvre directement ce panneau.
 - Planches A4 entamées : on indique le nombre de cases déjà utilisées.
 - Réglages imprimante : densité, vitesse, espace entre étiquettes, seuil noir/blanc, inversion.
 - Historique d'impression (traçabilité : produit, dates, lot, quantité, heure).
@@ -42,6 +44,10 @@ Marges de 1 mm : l'étiquette se colle directement sur le sachet. Les lignes tro
 - Numérotation automatique par type et par année : `DV-2026-0001`, `PF-…`, `FA-…`, `BL-…`, `DC-…` (préfixes modifiables).
 - Remise par ligne et remise globale, TVA, total **en toutes lettres** (« Arrêtée la présente facture à la somme de … francs CFA »).
 - **En-tête en image** et **pied de page en image** (répétés sur chaque page), ou bloc texte avec logo.
+- **Signataires personnalisables** : titre (La Direction, Le Responsable, Le Gérant…) et nom de chaque signataire, à gauche et à droite, masquables ; valeurs par défaut par type de document (Réglages › Mon entreprise) et modifiables dans chaque document.
+- **Cachet** : image du cachet (fond blanc retiré automatiquement), apposé incliné sur la signature de droite ; option par document, cachetage automatique par type de document, taille réglable.
+- **Sticker** (Maison de l'Entreprise) : photo prise avec le téléphone, **sticker détecté et détouré automatiquement**, cadre ajustable, rotation ; collé en haut du document (gauche, centre ou droite, largeur réglable). Bouton « Coller le sticker » directement sur les factures définitives.
+- **Informations supplémentaires client** : champ libre (RCCM, BP, contact, n° de bon de commande…) imprimé dans le bloc client.
 - Clients enregistrés, statut (brouillon, envoyé, payé…), duplication, partage / impression PDF A4.
 
 ### Modèles

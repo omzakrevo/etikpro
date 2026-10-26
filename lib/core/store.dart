@@ -177,7 +177,10 @@ class AppStore extends ChangeNotifier {
       ..sourceNumber = src.number
       ..convertedTo = []
       ..status = 'brouillon'
-      ..templateId = defaultTemplateFor(target).id;
+      ..templateId = defaultTemplateFor(target).id
+      ..signatures = company.signatoriesFor(target)
+      ..showStamp = company.stampB64 != null && company.stampTypes.contains(target.name)
+      ..stickerB64 = null;
     if (target == DocType.decharge && d.dischargeText.isEmpty) {
       d.dischargeText = defaultDischargeText(d);
     }

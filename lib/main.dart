@@ -6,6 +6,7 @@ import 'core/licence.dart';
 import 'core/store.dart';
 import 'ui/home_shell.dart';
 import 'ui/licence_screen.dart';
+import 'ui/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,11 +23,6 @@ class EtikProApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: brandBlue,
-      primary: brandBlue,
-      secondary: brandOrange,
-    );
     return MaterialApp(
       title: 'ETIKPRO',
       debugShowCheckedModeBanner: false,
@@ -37,22 +33,7 @@ class EtikProApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        colorScheme: scheme,
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(centerTitle: false),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: scheme.outlineVariant),
-          ),
-        ),
-      ),
+      theme: buildTheme(),
       home: const LicenceGate(),
     );
   }

@@ -173,6 +173,7 @@ Future<Uint8List> buildDocPdf(
     d.clientAddress,
     if (d.clientPhone.isNotEmpty) 'Tél : ${d.clientPhone}',
     if (d.clientIfu.isNotEmpty) 'IFU : ${d.clientIfu}',
+    ...d.clientExtra.split('\n').where((e) => e.trim().isNotEmpty),
   ];
   final infoLines = [
     'Date : ${fmtDate(d.date)}',
@@ -309,14 +310,70 @@ Future<Uint8List> buildDocPdf(
               style: st(bold: true)),
         ]);
 
-  // ---------- Signatures ----------
-  pw.Widget sig(String label) => pw.Expanded(
-        child: pw.Column(children: [
-          pw.Text(label, style: st(bold: true)),
-          pw.SizedBox(height: 18 * _mm),
-          pw.Container(height: 0.6, color: PdfColors.grey600, margin: const pw.EdgeInsets.symmetric(horizontal: 6 * _mm)),
-        ]),
+  // ---------- Signatures (titre, nom, cachet) ----------
+  final sg = d.signatures ?? c.signatoriesFor(d.type);
+  final stamp = d.showStamp ? _img(c.stampB64) : null;
+  final stampW = c.stampSizeMm * _mm;
+  pw.Widget sig(String title, String name, {pw.MemoryImage? stampImg}) => pw.Expanded(
+        child: pw.SizedBox(
+          height: 34 * _mm,
+          child: pw.Stack(alignment: pw.Alignment.topCenter, overflow: pw.Overflow.visible, children: [
+            pw.Column(children: [
+              pw.Text(title, style: st(bold: true), textAlign: pw.TextAlign.center),
+              pw.SizedBox(height: 20 * _mm),
+              pw.Container(
+                  height: 0.6,
+                  color: PdfColors.grey600,
+                  margin: const pw.EdgeInsets.symmetric(horizontal: 6 * _mm)),
+              if (name.trim().isNotEmpty) ...[
+                pw.SizedBox(height: 1.2 * _mm),
+                pw.Text(name, style: st(k: 1.02, bold: true), textAlign: pw.TextAlign.center),
+              ],
+            ]),
+            if (stampImg != null)
+              pw.Positioned(
+                top: 3 * _mm,
+                right: 4 * _mm,
+                child: pw.Opacity(
+                  opacity: 0.9,
+                  child: pw.Transform.rotate(
+                    angle: -0.14,
+                    child: pw.SizedBox(
+                        width: stampW, height: stampW, child: pw.Image(stampImg, fit: pw.BoxFit.contain)),
+                  ),
+                ),
+              ),
+          ]),
+        ),
       );
+
+  // ---------- Sticker (timbre / sticker de la Maison de l'Entreprise) ----------
+  final sticker = _img(d.stickerB64);
+  pw.Widget withSticker(pw.Widget titleW) {
+    if (sticker == null) return titleW;
+    final sw = d.stickerWidthMm * _mm;
+    final stickerW = pw.Container(
+      width: sw,
+      decoration: const pw.BoxDecoration(boxShadow: [
+        pw.BoxShadow(color: PdfColors.grey500, blurRadius: 2, offset: PdfPoint(0.6, -0.6)),
+      ]),
+      child: pw.Image(sticker, fit: pw.BoxFit.contain),
+    );
+    if (d.stickerPos == 'center') {
+      return pw.Column(children: [
+        pw.Center(child: stickerW),
+        pw.SizedBox(height: 3 * _mm),
+        titleW,
+      ]);
+    }
+    final gap = pw.SizedBox(width: 4 * _mm);
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
+      children: d.stickerPos == 'left'
+          ? [stickerW, gap, pw.Expanded(child: titleW)]
+          : [pw.Expanded(child: titleW), gap, stickerW],
+    );
+  }
 
   pdf.addPage(pw.MultiPage(
     pageFormat: PdfPageFormat.a4.copyWith(
@@ -328,7 +385,7 @@ Future<Uint8List> buildDocPdf(
     header: buildHeader,
     footer: buildFooter,
     build: (ctx) => [
-      title,
+      withSticker(title),
       pw.SizedBox(height: 4 * _mm),
       pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
         pw.Expanded(
@@ -371,16 +428,20 @@ Future<Uint8List> buildDocPdf(
         pw.Text('Notes', style: st(bold: true, color: primary)),
         pw.Text(d.notes, style: st()),
       ],
-      if (t.showSignatures) ...[
+      if (t.showSignatures && (sg.showLeft || sg.showRight)) ...[
         pw.SizedBox(height: 8 * _mm),
         pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          sig(d.type == DocType.bordereau || d.type == DocType.decharge
-              ? (d.type == DocType.decharge ? 'Le bénéficiaire' : 'Reçu par')
-              : t.signatureLeft),
-          sig(d.type == DocType.bordereau
-              ? 'Livré par'
-              : (d.type == DocType.decharge ? 'Le remettant' : t.signatureRight)),
+          if (sg.showLeft) sig(sg.leftTitle, sg.leftName) else pw.Spacer(),
+          if (sg.showRight) sig(sg.rightTitle, sg.rightName, stampImg: stamp) else pw.Spacer(),
         ]),
+      ] else if (stamp != null) ...[
+        pw.SizedBox(height: 6 * _mm),
+        pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Transform.rotate(
+              angle: -0.14,
+              child: pw.SizedBox(width: stampW, height: stampW, child: pw.Image(stamp, fit: pw.BoxFit.contain))),
+        ),
       ],
     ],
   ));

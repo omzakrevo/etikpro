@@ -8,11 +8,82 @@ import '../../core/models.dart';
 import '../../core/store.dart';
 import '../../core/utils.dart';
 import '../common.dart';
+import '../theme.dart';
 
 class CompanyScreen extends StatefulWidget {
   const CompanyScreen({super.key});
   @override
   State<CompanyScreen> createState() => _CompanyScreenState();
+}
+
+/// Boîte d'édition des signataires (titre + nom, à gauche et à droite).
+Future<Signatories?> editSignatories(BuildContext context, DocType t, Signatories sg) {
+  final lt = TextEditingController(text: sg.leftTitle);
+  final ln = TextEditingController(text: sg.leftName);
+  final rt = TextEditingController(text: sg.rightTitle);
+  final rn = TextEditingController(text: sg.rightName);
+  var showL = sg.showLeft, showR = sg.showRight;
+  return showDialog<Signatories>(
+    context: context,
+    builder: (c) => StatefulBuilder(
+      builder: (c, set) => AlertDialog(
+        title: Text('Signataires — ${t.label}'),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: showL,
+                onChanged: (v) => set(() => showL = v),
+                title: const Text('Signature de gauche', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              if (showL) ...[
+                TextField(controller: lt, decoration: const InputDecoration(labelText: 'Titre (ex. Le client)')),
+                const SizedBox(height: 8),
+                TextField(controller: ln, decoration: const InputDecoration(labelText: 'Nom (optionnel)')),
+              ],
+              const SizedBox(height: 10),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: showR,
+                onChanged: (v) => set(() => showR = v),
+                title: const Text('Signature de droite', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              if (showR) ...[
+                TextField(
+                    controller: rt,
+                    decoration: const InputDecoration(labelText: 'Titre (ex. Le Responsable, La Direction)')),
+                const SizedBox(height: 8),
+                TextField(controller: rn, decoration: const InputDecoration(labelText: 'Nom (optionnel)')),
+              ],
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final v in ['La Direction', 'Le Responsable', 'Le Gérant', 'Le Directeur Général', 'Le Comptable', 'Le Chef de service'])
+                  ActionChip(label: Text(v), onPressed: () => set(() => rt.text = v)),
+              ]),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+                c,
+                Signatories(
+                  leftTitle: lt.text.trim(),
+                  leftName: ln.text.trim(),
+                  rightTitle: rt.text.trim(),
+                  rightName: rn.text.trim(),
+                  showLeft: showL,
+                  showRight: showR,
+                )),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _CompanyScreenState extends State<CompanyScreen> {
@@ -99,6 +170,103 @@ class _CompanyScreenState extends State<CompanyScreen> {
 
   bool _mono = true;
 
+  Widget _stampCard() {
+    final b64 = c.stampB64;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Cachet de l’entreprise', style: TextStyle(fontWeight: FontWeight.w700)),
+          Text(
+              'Photo ou scan du cachet sur papier blanc : le fond blanc est retiré automatiquement. '
+              'Il s’appose sur la signature de droite (option dans chaque document).',
+              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 8),
+          if (b64 != null)
+            Container(
+              width: 120,
+              height: 120,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                // damier : montre la transparence
+                color: Colors.white,
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Image.memory(base64Decode(b64), fit: BoxFit.contain),
+            ),
+          Wrap(spacing: 4, children: [
+            TextButton.icon(
+              onPressed: () async {
+                try {
+                  final raw = await pickImageB64();
+                  if (raw == null) return;
+                  final v = prepareStamp(base64Decode(raw));
+                  setState(() => c.stampB64 = v);
+                } catch (e) {
+                  if (mounted) snack(context, '$e', error: true);
+                }
+              },
+              icon: const Icon(Icons.approval),
+              label: Text(b64 == null ? 'Ajouter le cachet' : 'Remplacer'),
+            ),
+            if (b64 != null)
+              TextButton.icon(
+                onPressed: () => setState(() => c.stampB64 = null),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Retirer'),
+              ),
+          ]),
+          if (b64 != null) ...[
+            Row(children: [
+              const Text('Taille'),
+              Expanded(
+                child: Slider(
+                  value: c.stampSizeMm.clamp(25, 55),
+                  min: 25,
+                  max: 55,
+                  divisions: 6,
+                  label: '${c.stampSizeMm.round()} mm',
+                  onChanged: (v) => setState(() => c.stampSizeMm = v),
+                ),
+              ),
+              Text('${c.stampSizeMm.round()} mm'),
+            ]),
+            const Text('Cacheter automatiquement :', style: TextStyle(fontWeight: FontWeight.w600)),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final t in DocType.values)
+                FilterChip(
+                  label: Text(t.label),
+                  selected: c.stampTypes.contains(t.name),
+                  onSelected: (v) => setState(() =>
+                      v ? c.stampTypes.add(t.name) : c.stampTypes.remove(t.name)),
+                ),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _signatoryTile(DocType t) {
+    final sg = c.signatoriesFor(t);
+    String side(String title, String name) => [title, if (name.isNotEmpty) name].join(' — ');
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.draw_outlined),
+        title: Text(t.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(
+            '${sg.showLeft ? side(sg.leftTitle, sg.leftName) : '—'}   |   ${sg.showRight ? side(sg.rightTitle, sg.rightName) : '—'}',
+            maxLines: 2),
+        trailing: const Icon(Icons.edit_outlined),
+        onTap: () async {
+          final r = await editSignatories(context, t, sg);
+          if (r != null) setState(() => c.signatories[t.name] = r);
+        },
+      ),
+    );
+  }
+
   Future<void> _pickLabelLogo({Uint8List? from}) async {
     try {
       Uint8List? bytes = from;
@@ -169,7 +337,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: eAppBar(
         title: const Text('Mon entreprise'),
         actions: [TextButton(onPressed: _save, child: const Text('Enregistrer'))],
       ),
@@ -221,6 +389,12 @@ class _CompanyScreenState extends State<CompanyScreen> {
               c.footerB64, (v) => c.footerB64 = v, height: 60),
           _imageSlot('Logo', "Utilisé quand il n'y a pas d'image d'en-tête.", c.logoB64,
               (v) => c.logoB64 = v),
+          _stampCard(),
+          const SectionTitle('Signataires par défaut'),
+          Text('Titre et nom imprimés sous les signatures. Modifiables aussi dans chaque document.',
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600)),
+          const SizedBox(height: 6),
+          for (final t in DocType.values) _signatoryTile(t),
           const SectionTitle('Numérotation des documents'),
           Wrap(spacing: 10, runSpacing: 10, children: [
             for (final t in DocType.values)

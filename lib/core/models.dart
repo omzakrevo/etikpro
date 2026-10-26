@@ -9,6 +9,53 @@ int _i(dynamic v, [int def = 0]) =>
     v == null ? def : (v is num ? v.toInt() : int.tryParse('$v') ?? def);
 DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse('$v');
 
+/// Signataires d'un document : titre (« La Direction », « Le Responsable »…) et nom.
+class Signatories {
+  String leftTitle;
+  String leftName;
+  String rightTitle;
+  String rightName;
+  bool showLeft;
+  bool showRight;
+
+  Signatories({
+    this.leftTitle = 'Le client',
+    this.leftName = '',
+    this.rightTitle = 'La Direction',
+    this.rightName = '',
+    this.showLeft = true,
+    this.showRight = true,
+  });
+
+  /// Valeurs par défaut selon le type de document.
+  factory Signatories.defaultsFor(DocType t) => switch (t) {
+        DocType.bordereau => Signatories(leftTitle: 'Reçu par', rightTitle: 'Livré par'),
+        DocType.decharge => Signatories(leftTitle: 'Le bénéficiaire', rightTitle: 'Le remettant'),
+        DocType.devis => Signatories(leftTitle: 'Bon pour accord (client)', rightTitle: 'La Direction'),
+        _ => Signatories(),
+      };
+
+  Signatories copy() => Signatories.fromJson(toJson());
+
+  Map<String, dynamic> toJson() => {
+        'leftTitle': leftTitle,
+        'leftName': leftName,
+        'rightTitle': rightTitle,
+        'rightName': rightName,
+        'showLeft': showLeft,
+        'showRight': showRight,
+      };
+
+  factory Signatories.fromJson(Map<String, dynamic> j) => Signatories(
+        leftTitle: j['leftTitle'] ?? '',
+        leftName: j['leftName'] ?? '',
+        rightTitle: j['rightTitle'] ?? '',
+        rightName: j['rightName'] ?? '',
+        showLeft: j['showLeft'] ?? true,
+        showRight: j['showRight'] ?? true,
+      );
+}
+
 /// Profil de l'entreprise cliente (une installation = une entreprise).
 class Company {
   String name;
@@ -22,6 +69,10 @@ class Company {
   String? labelLogoB64; // logo imprimé sur les étiquettes
   String? headerB64; // en-tête des documents (image)
   String? footerB64; // pied de page des documents (image)
+  String? stampB64; // cachet de l'entreprise (fond transparent)
+  List<String> stampTypes; // types de documents cachetés par défaut
+  double stampSizeMm;
+  Map<String, Signatories> signatories; // signataires par défaut, par type de document
   String currency;
   double defaultVat; // % TVA par défaut
   Map<String, String> prefixes; // préfixes de numérotation par type de document
@@ -40,6 +91,10 @@ class Company {
     this.labelLogoB64,
     this.headerB64,
     this.footerB64,
+    this.stampB64,
+    List<String>? stampTypes,
+    this.stampSizeMm = 38,
+    Map<String, Signatories>? signatories,
     this.currency = 'FCFA',
     this.defaultVat = 0,
     Map<String, String>? prefixes,
@@ -48,7 +103,13 @@ class Company {
   })  : prefixes = prefixes ??
             {for (final t in DocType.values) t.name: t.defaultPrefix},
         counters = counters ?? {},
-        defaultTemplates = defaultTemplates ?? {};
+        defaultTemplates = defaultTemplates ?? {},
+        stampTypes = stampTypes ?? ['devis', 'proforma', 'facture'],
+        signatories = signatories ?? {};
+
+  /// Signataires par défaut d'un type de document (copie modifiable).
+  Signatories signatoriesFor(DocType t) =>
+      (signatories[t.name] ?? Signatories.defaultsFor(t)).copy();
 
   Map<String, dynamic> toJson() => {
         'name': name,
@@ -62,6 +123,10 @@ class Company {
         'labelLogoB64': labelLogoB64,
         'headerB64': headerB64,
         'footerB64': footerB64,
+        'stampB64': stampB64,
+        'stampTypes': stampTypes,
+        'stampSizeMm': stampSizeMm,
+        'signatories': signatories.map((k, v) => MapEntry(k, v.toJson())),
         'currency': currency,
         'defaultVat': defaultVat,
         'prefixes': prefixes,
@@ -81,6 +146,11 @@ class Company {
         labelLogoB64: j['labelLogoB64'],
         headerB64: j['headerB64'],
         footerB64: j['footerB64'],
+        stampB64: j['stampB64'],
+        stampTypes: j['stampTypes'] == null ? null : List<String>.from(j['stampTypes']),
+        stampSizeMm: _d(j['stampSizeMm'], 38),
+        signatories: Map<String, dynamic>.from(j['signatories'] ?? {})
+            .map((k, v) => MapEntry(k, Signatories.fromJson(Map<String, dynamic>.from(v)))),
         currency: j['currency'] ?? 'FCFA',
         defaultVat: _d(j['defaultVat']),
         prefixes: {
@@ -157,6 +227,7 @@ class Client {
   String address;
   String email;
   String ifu;
+  String extra; // informations supplémentaires libres
 
   Client({
     String? id,
@@ -165,6 +236,7 @@ class Client {
     this.address = '',
     this.email = '',
     this.ifu = '',
+    this.extra = '',
   }) : id = id ?? newId();
 
   Map<String, dynamic> toJson() => {
@@ -174,6 +246,7 @@ class Client {
         'address': address,
         'email': email,
         'ifu': ifu,
+        'extra': extra,
       };
 
   factory Client.fromJson(Map<String, dynamic> j) => Client(
@@ -183,6 +256,7 @@ class Client {
         address: j['address'] ?? '',
         email: j['email'] ?? '',
         ifu: j['ifu'] ?? '',
+        extra: j['extra'] ?? '',
       );
 }
 
@@ -260,6 +334,7 @@ class CommercialDoc {
   String clientPhone;
   String clientAddress;
   String clientIfu;
+  String clientExtra; // informations supplémentaires du client
   String subject; // objet
   List<DocLine> lines;
   double vatRate;
@@ -275,6 +350,11 @@ class CommercialDoc {
   String receiverName; // décharge / bordereau : nom du réceptionnaire
   String dischargeText; // décharge : texte libre
   String status; // brouillon, envoyé, payé, converti
+  Signatories? signatures; // null = signataires par défaut de l'entreprise
+  bool showStamp; // apposer le cachet de l'entreprise
+  String? stickerB64; // sticker (photo détourée) collé en haut du document
+  String stickerPos; // left | center | right
+  double stickerWidthMm;
 
   CommercialDoc({
     String? id,
@@ -286,6 +366,7 @@ class CommercialDoc {
     this.clientPhone = '',
     this.clientAddress = '',
     this.clientIfu = '',
+    this.clientExtra = '',
     this.subject = '',
     List<DocLine>? lines,
     this.vatRate = 0,
@@ -301,6 +382,11 @@ class CommercialDoc {
     this.receiverName = '',
     this.dischargeText = '',
     this.status = 'brouillon',
+    this.signatures,
+    this.showStamp = false,
+    this.stickerB64,
+    this.stickerPos = 'right',
+    this.stickerWidthMm = 42,
   })  : id = id ?? newId(),
         date = date ?? DateTime.now(),
         lines = lines ?? [],
@@ -321,6 +407,7 @@ class CommercialDoc {
         'clientPhone': clientPhone,
         'clientAddress': clientAddress,
         'clientIfu': clientIfu,
+        'clientExtra': clientExtra,
         'subject': subject,
         'lines': lines.map((e) => e.toJson()).toList(),
         'vatRate': vatRate,
@@ -336,6 +423,11 @@ class CommercialDoc {
         'receiverName': receiverName,
         'dischargeText': dischargeText,
         'status': status,
+        'signatures': signatures?.toJson(),
+        'showStamp': showStamp,
+        'stickerB64': stickerB64,
+        'stickerPos': stickerPos,
+        'stickerWidthMm': stickerWidthMm,
       };
 
   factory CommercialDoc.fromJson(Map<String, dynamic> j) => CommercialDoc(
@@ -348,6 +440,7 @@ class CommercialDoc {
         clientPhone: j['clientPhone'] ?? '',
         clientAddress: j['clientAddress'] ?? '',
         clientIfu: j['clientIfu'] ?? '',
+        clientExtra: j['clientExtra'] ?? '',
         subject: j['subject'] ?? '',
         lines: ((j['lines'] as List?) ?? [])
             .map((e) => DocLine.fromJson(Map<String, dynamic>.from(e)))
@@ -365,6 +458,13 @@ class CommercialDoc {
         receiverName: j['receiverName'] ?? '',
         dischargeText: j['dischargeText'] ?? '',
         status: j['status'] ?? 'brouillon',
+        signatures: j['signatures'] == null
+            ? null
+            : Signatories.fromJson(Map<String, dynamic>.from(j['signatures'])),
+        showStamp: j['showStamp'] == true,
+        stickerB64: j['stickerB64'],
+        stickerPos: j['stickerPos'] ?? 'right',
+        stickerWidthMm: _d(j['stickerWidthMm'], 42),
       );
 }
 

@@ -9,6 +9,7 @@ import '../../core/store.dart';
 import '../../core/templates.dart';
 import '../../docs/doc_pdf.dart';
 import '../common.dart';
+import '../theme.dart';
 
 const _pretty = JsonEncoder.withIndent('  ');
 
@@ -84,7 +85,7 @@ class TemplatesScreen extends StatelessWidget {
       child: ListenableBuilder(
         listenable: s,
         builder: (context, _) => Scaffold(
-          appBar: AppBar(
+          appBar: eAppBar(
             title: const Text('Modèles'),
             actions: [
               PopupMenuButton<String>(
@@ -188,7 +189,7 @@ class _DocTemplateTile extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) => Scaffold(
-              appBar: AppBar(title: Text('Aperçu : ${t.name}')),
+              appBar: eAppBar(title: Text('Aperçu : ${t.name}')),
               body: PdfPreview(
                 build: (_) => buildDocPdf(
                     sampleDoc(t.docTypes.isEmpty ? DocType.facture : t.docTypes.first), s.company, t),

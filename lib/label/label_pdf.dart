@@ -204,38 +204,34 @@ pw.Widget buildLabelWidget(
   );
 }
 
-/// PDF d'étiquettes : une page par étiquette (imprimante d'étiquettes / ticket)
-/// ou planches A4 avec plusieurs étiquettes par page.
-Future<Uint8List> buildLabelsPdf({
-  required LabelData data,
-  required LabelStyle style,
+typedef LabelCellBuilder = pw.Widget Function(double wMm, double hMm, TextMeasure m);
+
+/// Met en page n'importe quelle étiquette : une page par étiquette
+/// (imprimante d'étiquettes / ticket) ou planches A4 avec plusieurs étiquettes.
+Future<Uint8List> layoutLabelsPdf({
+  required LabelCellBuilder cell,
   required LabelFormat format,
+  String title = 'Étiquettes',
   int copies = 1,
   int skipCells = 0, // planches A4 entamées : cases déjà utilisées
 }) async {
   final doc = pw.Document(
-      title: 'Étiquettes ${data.product}',
-      author: 'ETIKPRO',
-      theme: await PdfFonts.theme('helvetica'));
+      title: title, author: 'ETIKPRO', theme: await PdfFonts.theme('helvetica'));
   final m = await PdfFonts.measure();
-  copies = copies.clamp(1, 2000);
+  copies = copies.clamp(1, 5000);
 
   if (format.mode != PrintMode.a4) {
-    final pf = PdfPageFormat(format.widthMm * _mm, format.heightMm * _mm,
-        marginAll: 0);
+    final pf = PdfPageFormat(format.widthMm * _mm, format.heightMm * _mm, marginAll: 0);
+    final w = cell(format.widthMm, format.heightMm, m);
     for (var i = 0; i < copies; i++) {
-      doc.addPage(pw.Page(
-        pageFormat: pf,
-        build: (_) => buildLabelWidget(data, style, format.widthMm, format.heightMm, m),
-      ));
+      doc.addPage(pw.Page(pageFormat: pf, build: (_) => w));
     }
     return doc.save();
   }
 
   // Planches A4
   final per = format.perSheet;
-  final total = copies + skipCells;
-  final pages = (total / per).ceil();
+  final pages = ((copies + skipCells) / per).ceil();
   var idx = 0;
   for (var p = 0; p < pages; p++) {
     final cells = <pw.Widget>[];
@@ -247,7 +243,7 @@ Future<Uint8List> buildLabelsPdf({
         cells.add(pw.Positioned(
           left: (format.sheetMarginLeftMm + c * (format.widthMm + format.gapXMm)) * _mm,
           top: (format.sheetMarginTopMm + r * (format.heightMm + format.gapYMm)) * _mm,
-          child: buildLabelWidget(data, style, format.widthMm, format.heightMm, m),
+          child: cell(format.widthMm, format.heightMm, m),
         ));
       }
     }
@@ -259,3 +255,191 @@ Future<Uint8List> buildLabelsPdf({
   }
   return doc.save();
 }
+
+/// PDF d'étiquettes produit (traçabilité).
+Future<Uint8List> buildLabelsPdf({
+  required LabelData data,
+  required LabelStyle style,
+  required LabelFormat format,
+  int copies = 1,
+  int skipCells = 0,
+}) =>
+    layoutLabelsPdf(
+      cell: (w, h, m) => buildLabelWidget(data, style, w, h, m),
+      format: format,
+      title: 'Étiquettes ${data.product}',
+      copies: copies,
+      skipCells: skipCells,
+    );
+
+// ---------------------------------------------------------------------------
+// Étiquette libre : l'entreprise écrit ce qu'elle veut.
+// ---------------------------------------------------------------------------
+
+class FreeLabelData {
+  final String company; // vide = pas d'en-tête entreprise
+  final String phone;
+  final String title; // ligne en gros
+  final List<String> lines; // lignes libres ("Clé : valeur" met la clé en normal, la valeur en gras)
+  final Uint8List? logo;
+  final bool companyBand;
+  final bool border;
+  final String qr; // texte du QR (vide = pas de QR)
+  final String align; // left | center
+  final double fontScale;
+
+  const FreeLabelData({
+    this.company = '',
+    this.phone = '',
+    this.title = '',
+    this.lines = const [],
+    this.logo,
+    this.companyBand = true,
+    this.border = false,
+    this.qr = '',
+    this.align = 'left',
+    this.fontScale = 1,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'lines': lines,
+        'companyBand': companyBand,
+        'border': border,
+        'qr': qr,
+        'align': align,
+        'fontScale': fontScale,
+      };
+}
+
+pw.Widget buildFreeLabelWidget(FreeLabelData d, double wMm, double hMm, TextMeasure m) {
+  const margin = 1.0 * _mm;
+  final w = wMm * _mm, h = hMm * _mm;
+  final lines = d.lines.where((e) => e.trim().isNotEmpty).toList();
+  final hasCompany = d.company.trim().isNotEmpty;
+  final hasPhone = d.phone.trim().isNotEmpty;
+  final hasTitle = d.title.trim().isNotEmpty;
+  final hasLogo = d.logo != null && d.logo!.isNotEmpty;
+  final center = d.align == 'center';
+
+  var units = lines.length * 1.0;
+  if (hasCompany) units += 1.1;
+  if (hasPhone) units += 0.9;
+  if (hasTitle) units += 1.45;
+  if (units == 0) units = 1;
+  final qrSize = d.qr.isNotEmpty ? ((h - 2 * margin) * 0.62).clamp(0.0, w * 0.32) : 0.0;
+  final textW = w - 2 * margin - (qrSize > 0 ? qrSize + 1.5 * _mm : 0);
+  final fs = (((h - 2 * margin) / (units * 1.2)) * d.fontScale).clamp(4.0, 22.0);
+
+  pw.TextStyle st(double k, {bool bold = false, PdfColor? color}) => pw.TextStyle(
+        fontSize: fs * k,
+        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        color: color ?? PdfColors.black,
+      );
+  double shrink(double em, double size, double avail) =>
+      em * size <= avail || em == 0 ? 1 : avail / (em * size);
+
+  pw.Widget line(String t, double k, double avail, {bool bold = false}) {
+    // "Clé : valeur" -> valeur en gras
+    final i = t.indexOf(':');
+    if (!bold && i > 0 && i < t.length - 1) {
+      final key = '${t.substring(0, i).trim()} : ';
+      final val = t.substring(i + 1).trim();
+      final f = shrink(m.width(key) * 0.92 + m.width(val, isBold: true), fs * k, avail);
+      return pw.RichText(
+        maxLines: 1,
+        textAlign: center ? pw.TextAlign.center : pw.TextAlign.left,
+        text: pw.TextSpan(children: [
+          pw.TextSpan(text: key, style: st(k * 0.92 * f)),
+          pw.TextSpan(text: val, style: st(k * f, bold: true)),
+        ]),
+      );
+    }
+    final f = shrink(m.width(t, isBold: bold), fs * k, avail);
+    return pw.Text(t,
+        maxLines: 1,
+        textAlign: center ? pw.TextAlign.center : pw.TextAlign.left,
+        style: st(k * f, bold: bold));
+  }
+
+  // En-tête (logo + entreprise + téléphone)
+  final headUnits = (hasCompany ? 1.1 : 0) + (hasPhone ? 0.9 : 0) + (hasTitle ? 1.45 : 0);
+  final logoSize = hasLogo ? (fs * 1.2 * (headUnits == 0 ? 2 : headUnits)).clamp(4 * _mm, textW * 0.34) : 0.0;
+  final headW = textW - (hasLogo ? logoSize + 1.2 * _mm : 0);
+  final companyText = d.company.toUpperCase();
+  final head = pw.Column(
+    crossAxisAlignment: center ? pw.CrossAxisAlignment.center : pw.CrossAxisAlignment.start,
+    mainAxisSize: pw.MainAxisSize.min,
+    children: [
+      if (hasCompany && d.companyBand)
+        pw.Container(
+          width: headW,
+          color: PdfColors.black,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 1.2 * _mm, vertical: 0.3 * _mm),
+          alignment: center ? pw.Alignment.center : pw.Alignment.centerLeft,
+          child: pw.Text(companyText,
+              maxLines: 1,
+              style: st(1.05 * shrink(m.width(companyText, isBold: true), fs * 1.05, headW - 2.4 * _mm),
+                  bold: true, color: PdfColors.white)),
+        )
+      else if (hasCompany)
+        line(companyText, 1.1, headW, bold: true),
+      if (hasPhone) line('Tél : ${d.phone}', 0.9, headW),
+      if (hasTitle) line(d.title, 1.45, headW, bold: true),
+    ],
+  );
+  final header = hasLogo
+      ? pw.Row(children: [
+          pw.SizedBox(
+              width: logoSize,
+              height: logoSize,
+              child: pw.Image(pw.MemoryImage(d.logo!), fit: pw.BoxFit.contain)),
+          pw.SizedBox(width: 1.2 * _mm),
+          pw.SizedBox(width: headW, child: head),
+        ])
+      : pw.SizedBox(width: textW, child: head);
+
+  final text = pw.Column(
+    crossAxisAlignment: center ? pw.CrossAxisAlignment.center : pw.CrossAxisAlignment.start,
+    mainAxisAlignment: lines.length + headUnits > 2.5
+        ? pw.MainAxisAlignment.spaceBetween
+        : pw.MainAxisAlignment.center,
+    children: [
+      if (headUnits > 0 || hasLogo) header,
+      for (final l in lines) pw.SizedBox(width: textW, child: line(l, 1, textW)),
+    ],
+  );
+
+  return pw.Container(
+    width: w,
+    height: h,
+    padding: const pw.EdgeInsets.all(margin),
+    decoration: d.border
+        ? pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black, width: 0.8),
+            borderRadius: pw.BorderRadius.circular(1.2 * _mm))
+        : null,
+    child: pw.Row(children: [
+      pw.SizedBox(width: textW, height: h - 2 * margin, child: text),
+      if (qrSize > 0) ...[
+        pw.SizedBox(width: 1.5 * _mm),
+        pw.BarcodeWidget(
+            barcode: pw.Barcode.qrCode(), data: d.qr, width: qrSize, height: qrSize, drawText: false),
+      ],
+    ]),
+  );
+}
+
+Future<Uint8List> buildFreeLabelsPdf({
+  required FreeLabelData data,
+  required LabelFormat format,
+  int copies = 1,
+  int skipCells = 0,
+}) =>
+    layoutLabelsPdf(
+      cell: (w, h, m) => buildFreeLabelWidget(data, w, h, m),
+      format: format,
+      title: 'Étiquettes ${data.title}',
+      copies: copies,
+      skipCells: skipCells,
+    );

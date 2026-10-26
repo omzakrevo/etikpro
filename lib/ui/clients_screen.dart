@@ -4,6 +4,7 @@ import '../core/models.dart';
 import '../core/store.dart';
 import '../core/utils.dart';
 import 'common.dart';
+import 'theme.dart';
 
 class ClientsScreen extends StatelessWidget {
   const ClientsScreen({super.key});
@@ -14,6 +15,7 @@ class ClientsScreen extends StatelessWidget {
     final address = TextEditingController(text: c.address);
     final email = TextEditingController(text: c.email);
     final ifu = TextEditingController(text: c.ifu);
+    final extra = TextEditingController(text: c.extra);
     final isNew = !AppStore.I.clients.any((e) => e.id == c.id);
     final ok = await showDialog<bool>(
       context: context,
@@ -22,20 +24,48 @@ class ClientsScreen extends StatelessWidget {
         content: SizedBox(
           width: 440,
           child: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'Nom *')),
-              const SizedBox(height: 10),
-              TextField(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Nom *'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
                   controller: phone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Téléphone')),
-              const SizedBox(height: 10),
-              TextField(controller: address, decoration: const InputDecoration(labelText: 'Adresse')),
-              const SizedBox(height: 10),
-              TextField(controller: email, decoration: const InputDecoration(labelText: 'E-mail')),
-              const SizedBox(height: 10),
-              TextField(controller: ifu, decoration: const InputDecoration(labelText: 'IFU')),
-            ]),
+                  decoration: const InputDecoration(labelText: 'Téléphone'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: address,
+                  decoration: const InputDecoration(labelText: 'Adresse'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: email,
+                  decoration: const InputDecoration(labelText: 'E-mail'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: ifu,
+                  decoration: const InputDecoration(labelText: 'IFU'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: extra,
+                  minLines: 3,
+                  maxLines: 8,
+                  decoration: const InputDecoration(
+                    labelText: 'Informations supplémentaires',
+                    hintText:
+                        'RCCM, BP, contact, horaires de livraison, n° de compte…\nUne information par ligne',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -58,7 +88,8 @@ class ClientsScreen extends StatelessWidget {
         ..phone = phone.text.trim()
         ..address = address.text.trim()
         ..email = email.text.trim()
-        ..ifu = ifu.text.trim();
+        ..ifu = ifu.text.trim()
+        ..extra = extra.text.trim();
       await AppStore.I.upsertClient(c);
     }
   }
@@ -71,7 +102,7 @@ class ClientsScreen extends StatelessWidget {
       builder: (context, _) {
         final list = [...s.clients]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         return Scaffold(
-          appBar: AppBar(title: const Text('Clients')),
+          appBar: eAppBar(title: const Text('Clients')),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () => _edit(context, Client()),
             icon: const Icon(Icons.person_add),
@@ -81,27 +112,66 @@ class ClientsScreen extends StatelessWidget {
               ? const EmptyState(
                   icon: Icons.people_outline,
                   title: 'Aucun client',
-                  text: 'Ajoutez vos clients pour les retrouver dans vos devis et factures.')
+                  text: 'Ajoutez vos clients pour les retrouver dans vos devis et factures.',
+                )
               : FormWidth(
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
                     itemCount: list.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const SizedBox(height: 4),
                     itemBuilder: (_, i) {
                       final c = list[i];
                       final docs = s.docs.where((d) => d.clientId == c.id || d.clientName == c.name);
                       final ca = docs
                           .where((d) => d.type == DocType.facture)
                           .fold(0.0, (t, d) => t + d.total);
-                      return ListTile(
-                        leading: CircleAvatar(child: Text(c.name.isEmpty ? '?' : c.name[0].toUpperCase())),
-                        title: Text(c.name),
-                        subtitle: Text([c.phone, c.address].where((e) => e.isNotEmpty).join(' • ')),
-                        trailing: Text(
-                            '${docs.length} doc.\n${fmtAmount(ca)} ${s.company.currency}',
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(fontSize: 12)),
-                        onTap: () => _edit(context, c),
+                      return Card(
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          leading: Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              gradient: EColors.soft(
+                                [
+                                  EColors.blue,
+                                  EColors.orange,
+                                  EColors.green,
+                                  EColors.purple,
+                                  EColors.teal,
+                                ][c.name.hashCode.abs() % 5],
+                              ),
+                              shape: BoxShape.circle,
+                              boxShadow: eShadow(EColors.blue, .5),
+                            ),
+                            child: Text(
+                              c.name.isEmpty ? '?' : c.name[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                          title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: Text([c.phone, c.address].where((e) => e.isNotEmpty).join(' • ')),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${fmtAmount(ca)} ${s.company.currency}',
+                                style: const TextStyle(fontWeight: FontWeight.w900, color: EColors.blue),
+                              ),
+                              Text(
+                                '${docs.length} document${docs.length > 1 ? 's' : ''}',
+                                style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600),
+                              ),
+                            ],
+                          ),
+                          onTap: () => _edit(context, c),
+                        ),
                       );
                     },
                   ),

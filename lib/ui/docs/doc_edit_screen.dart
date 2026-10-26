@@ -5,6 +5,8 @@ import '../../core/store.dart';
 import '../../core/utils.dart';
 import '../common.dart';
 import 'doc_view_screen.dart';
+import 'sticker_screen.dart';
+import '../theme.dart';
 
 class DocEditScreen extends StatefulWidget {
   final CommercialDoc doc;
@@ -22,6 +24,12 @@ class _DocEditScreenState extends State<DocEditScreen> {
   late final _clientPhone = TextEditingController(text: d.clientPhone);
   late final _clientAddress = TextEditingController(text: d.clientAddress);
   late final _clientIfu = TextEditingController(text: d.clientIfu);
+  late final _clientExtra = TextEditingController(text: d.clientExtra);
+  late final Signatories _sg = d.signatures ?? s.company.signatoriesFor(d.type);
+  late final _sgLT = TextEditingController(text: _sg.leftTitle);
+  late final _sgLN = TextEditingController(text: _sg.leftName);
+  late final _sgRT = TextEditingController(text: _sg.rightTitle);
+  late final _sgRN = TextEditingController(text: _sg.rightName);
   late final _subject = TextEditingController(text: d.subject);
   late final _vat = TextEditingController(text: d.vatRate == 0 ? '' : fmtQty(d.vatRate));
   late final _discount =
@@ -42,6 +50,12 @@ class _DocEditScreenState extends State<DocEditScreen> {
       ..clientPhone = _clientPhone.text.trim()
       ..clientAddress = _clientAddress.text.trim()
       ..clientIfu = _clientIfu.text.trim()
+      ..clientExtra = _clientExtra.text.trim()
+      ..signatures = (_sg
+        ..leftTitle = _sgLT.text.trim()
+        ..leftName = _sgLN.text.trim()
+        ..rightTitle = _sgRT.text.trim()
+        ..rightName = _sgRN.text.trim())
       ..subject = _subject.text.trim()
       ..vatRate = parseNum(_vat.text)
       ..globalDiscount = parseNum(_discount.text)
@@ -64,7 +78,11 @@ class _DocEditScreenState extends State<DocEditScreen> {
     }
     if (_saveClient) {
       final c = Client(
-          name: d.clientName, phone: d.clientPhone, address: d.clientAddress, ifu: d.clientIfu);
+          name: d.clientName,
+          phone: d.clientPhone,
+          address: d.clientAddress,
+          ifu: d.clientIfu,
+          extra: d.clientExtra);
       await s.upsertClient(c);
       d.clientId = c.id;
     }
@@ -85,6 +103,7 @@ class _DocEditScreenState extends State<DocEditScreen> {
       _clientPhone.text = c.phone;
       _clientAddress.text = c.address;
       _clientIfu.text = c.ifu;
+      _clientExtra.text = c.extra;
       _saveClient = false;
     });
   }
@@ -105,7 +124,7 @@ class _DocEditScreenState extends State<DocEditScreen> {
     final cur = s.company.currency;
     final templates = s.allDocTemplates.where((t) => t.appliesTo(d.type)).toList();
     return Scaffold(
-      appBar: AppBar(
+      appBar: eAppBar(
         title: Text(_isNew ? 'Nouveau : ${d.type.label}' : '${d.type.label} ${d.number}'),
         actions: [
           TextButton.icon(onPressed: _save, icon: const Icon(Icons.save), label: const Text('Enregistrer')),
@@ -179,6 +198,17 @@ class _DocEditScreenState extends State<DocEditScreen> {
           ]),
           const SizedBox(height: 10),
           TextField(controller: _clientAddress, decoration: const InputDecoration(labelText: 'Adresse')),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _clientExtra,
+            minLines: 2,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              labelText: 'Informations supplémentaires',
+              hintText: 'RCCM, e-mail, BP, n° de compte contribuable, contact, bon de commande…\nUne information par ligne',
+              alignLabelWithHint: true,
+            ),
+          ),
           if (d.clientId == null)
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
@@ -363,6 +393,105 @@ class _DocEditScreenState extends State<DocEditScreen> {
             ],
             onChanged: (v) => d.status = v!,
           ),
+          // ---------- Sticker ----------
+          const SectionTitle('Sticker (en haut du document)'),
+          if (d.type != DocType.facture && d.stickerB64 == null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('Le sticker se met en général sur la facture définitive.',
+                  style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600)),
+            ),
+          StickerTile(
+            b64: d.stickerB64,
+            onAdd: () async {
+              final r = await captureSticker(context);
+              if (r != null) setState(() => d.stickerB64 = r);
+            },
+            onRemove: () => setState(() => d.stickerB64 = null),
+          ),
+          if (d.stickerB64 != null) ...[
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'left', label: Text('À gauche'), icon: Icon(Icons.align_horizontal_left)),
+                ButtonSegment(value: 'center', label: Text('Centré'), icon: Icon(Icons.align_horizontal_center)),
+                ButtonSegment(value: 'right', label: Text('À droite'), icon: Icon(Icons.align_horizontal_right)),
+              ],
+              selected: {d.stickerPos},
+              onSelectionChanged: (v) => setState(() => d.stickerPos = v.first),
+            ),
+            Row(children: [
+              const Text('Largeur'),
+              Expanded(
+                child: Slider(
+                  value: d.stickerWidthMm.clamp(25, 80),
+                  min: 25,
+                  max: 80,
+                  divisions: 11,
+                  label: '${d.stickerWidthMm.round()} mm',
+                  onChanged: (v) => setState(() => d.stickerWidthMm = v),
+                ),
+              ),
+              Text('${d.stickerWidthMm.round()} mm'),
+            ]),
+          ],
+
+          // ---------- Signataires & cachet ----------
+          const SectionTitle('Signataires et cachet'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(children: [
+                _SignBlock(
+                  label: 'Signataire de gauche',
+                  enabled: _sg.showLeft,
+                  onToggle: (v) => setState(() => _sg.showLeft = v),
+                  title: _sgLT,
+                  name: _sgLN,
+                  titleHint: 'Le client, Reçu par…',
+                ),
+                const Divider(height: 24),
+                _SignBlock(
+                  label: 'Signataire de droite (entreprise)',
+                  enabled: _sg.showRight,
+                  onToggle: (v) => setState(() => _sg.showRight = v),
+                  title: _sgRT,
+                  name: _sgRN,
+                  titleHint: 'La Direction, Le Responsable, Le Gérant…',
+                ),
+                const Divider(height: 24),
+                if (s.company.stampB64 == null)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.approval),
+                    title: const Text('Cachet'),
+                    subtitle: const Text('Ajoutez d’abord le cachet dans Réglages › Mon entreprise'),
+                  )
+                else
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: d.showStamp,
+                    onChanged: (v) => setState(() => d.showStamp = v),
+                    secondary: Image.memory(base64ToBytes(s.company.stampB64!), width: 44, height: 44),
+                    title: const Text('Apposer le cachet'),
+                    subtitle: const Text('Sur la signature de droite'),
+                  ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      _sync();
+                      s.company.signatories[d.type.name] = _sg.copy();
+                      await s.saveCompany();
+                      if (context.mounted) snack(context, 'Signataires enregistrés par défaut pour : ${d.type.label}');
+                    },
+                    icon: const Icon(Icons.push_pin_outlined),
+                    label: Text('Par défaut pour les ${d.type.label.toLowerCase()}s'),
+                  ),
+                ),
+              ]),
+            ),
+          ),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: _save,
@@ -375,6 +504,43 @@ class _DocEditScreenState extends State<DocEditScreen> {
       ),
     );
   }
+}
+
+class _SignBlock extends StatelessWidget {
+  final String label;
+  final bool enabled;
+  final ValueChanged<bool> onToggle;
+  final TextEditingController title;
+  final TextEditingController name;
+  final String titleHint;
+  const _SignBlock({
+    required this.label,
+    required this.enabled,
+    required this.onToggle,
+    required this.title,
+    required this.name,
+    required this.titleHint,
+  });
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Row(children: [
+          Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+          Switch(value: enabled, onChanged: onToggle),
+        ]),
+        if (enabled) ...[
+          const SizedBox(height: 6),
+          TextField(
+            controller: title,
+            decoration: InputDecoration(labelText: 'Titre / fonction', hintText: titleHint),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: name,
+            decoration: const InputDecoration(labelText: 'Nom du signataire (optionnel)', hintText: 'M. OUÉDRAOGO Paul'),
+          ),
+        ],
+      ]);
 }
 
 class _TotRow extends StatelessWidget {

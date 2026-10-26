@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/models.dart';
 import '../../core/store.dart';
 import '../../label/bt.dart';
-import '../../label/label_pdf.dart';
-import '../../label/label_printer.dart';
 import '../common.dart';
+import '../labels/print_widgets.dart';
+import '../theme.dart';
 
 class PrinterScreen extends StatefulWidget {
   const PrinterScreen({super.key});
@@ -15,101 +15,49 @@ class PrinterScreen extends StatefulWidget {
 
 class _PrinterScreenState extends State<PrinterScreen> {
   final s = AppStore.I;
-  List<BtDevice> _devices = [];
-  bool _scanning = false;
-
   PrinterSettings get p => s.printer;
-
-  @override
-  void initState() {
-    super.initState();
-    if (btSupported) _scan();
-  }
-
-  Future<void> _scan() async {
-    setState(() => _scanning = true);
-    try {
-      _devices = await btPaired();
-    } catch (e) {
-      if (mounted) snack(context, 'Bluetooth : $e', error: true);
-    }
-    if (mounted) setState(() => _scanning = false);
-  }
-
-  Future<void> _test() async {
-    final f = builtinLabelFormats.firstWhere((e) => e.id == p.defaultFormatId,
-        orElse: () => builtinLabelFormats[1]);
-    final now = DateTime.now();
-    final err = await printLabelBluetooth(
-      data: LabelData(
-        company: s.company.name.isEmpty ? 'TEST ETIKPRO' : s.company.name,
-        phone: s.company.phone,
-        product: 'Étiquette de test',
-        dateLabel: "Date d'abattage",
-        productionDate: now,
-        expiryDate: now.add(const Duration(days: 5)),
-        storageTemp: '0 °C à +4 °C',
-        durationText: '5 jours',
-        lot: 'TEST',
-      ),
-      style: s.labelStyleById('standard'),
-      format: f,
-      settings: p,
-    );
-    if (mounted) snack(context, err ?? 'Test envoyé', error: err != null);
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Imprimante')),
+      appBar: eAppBar(title: const Text('Imprimante')),
       body: FormWidth(
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          if (!btSupported)
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.info_outline),
-                title: Text('Impression via le navigateur'),
-                subtitle: Text(
-                    'Sur le Web, les étiquettes s’impriment par la boîte d’impression du système (pilote de l’imprimante d’étiquettes) ou en PDF.'),
-              ),
-            ),
+          PrinterBar(key: ValueKey(p.btAddress)),
           if (btSupported) ...[
-            SectionTitle('Imprimante Bluetooth${p.btName != null ? ' : ${p.btName}' : ''}'),
-            const Text(
-                'Appairez d’abord l’imprimante dans les réglages Bluetooth du téléphone / PC, puis choisissez-la ici.'),
-            const SizedBox(height: 8),
-            if (_scanning) const LinearProgressIndicator(),
-            RadioGroup<String>(
-              groupValue: p.btAddress,
-              onChanged: (v) {
-                final d = _devices.firstWhere((e) => e.address == v);
-                p
-                  ..btAddress = d.address
-                  ..btName = d.name;
-                s.savePrinter();
-                setState(() {});
-              },
-              child: Column(children: [
-                for (final d in _devices)
-                  RadioListTile<String>(
-                    value: d.address,
-                    title: Text(d.name.isEmpty ? d.address : d.name),
-                    subtitle: Text(d.address),
-                  ),
-              ]),
-            ),
-            if (!_scanning && _devices.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('Aucune imprimante appairée trouvée (vérifiez la permission Bluetooth).'),
-              ),
-            Wrap(spacing: 8, children: [
-              OutlinedButton.icon(onPressed: _scan, icon: const Icon(Icons.refresh), label: const Text('Actualiser')),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
               FilledButton.icon(
-                  onPressed: p.btAddress == null ? null : _test,
-                  icon: const Icon(Icons.print),
-                  label: const Text('Imprimer un test')),
+                onPressed: () async {
+                  await showPrinterSheet(context);
+                  setState(() {});
+                },
+                icon: const Icon(Icons.bluetooth_searching),
+                label: const Text('Choisir / connecter'),
+              ),
+              OutlinedButton.icon(
+                onPressed: p.btAddress == null
+                    ? null
+                    : () async {
+                        final err = await printTestLabel();
+                        if (context.mounted) snack(context, err ?? 'Test envoyé', error: err != null);
+                      },
+                icon: const Icon(Icons.print),
+                label: const Text('Imprimer un test'),
+              ),
+              if (p.btAddress != null)
+                TextButton.icon(
+                  onPressed: () async {
+                    await btDisconnect();
+                    p
+                      ..btAddress = null
+                      ..btName = null;
+                    await s.savePrinter();
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.link_off),
+                  label: const Text('Oublier'),
+                ),
             ]),
           ],
           const SectionTitle('Format par défaut'),
