@@ -7,6 +7,7 @@ import 'package:etikpro/core/models.dart';
 import 'package:etikpro/core/store.dart';
 import 'package:etikpro/ui/docs/doc_edit_screen.dart';
 import 'package:etikpro/ui/home_shell.dart';
+import 'package:etikpro/ui/labels/free_label_screen.dart';
 import 'package:etikpro/ui/licence_screen.dart';
 import 'package:etikpro/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -85,8 +86,8 @@ void main() {
   });
 
   Future<void> phone(WidgetTester t) async {
-    t.view.physicalSize = const Size(412 * 2.5, 900 * 2.5);
-    t.view.devicePixelRatio = 2.5;
+    t.view.physicalSize = const Size(1080, 2280);
+    t.view.devicePixelRatio = 2.625;
   }
 
   testWidgets('accueil étiquettes', (t) async {
@@ -125,6 +126,33 @@ void main() {
     await t.scrollUntilVisible(find.text('Sticker (en haut du document)'), 400,
         scrollable: find.byType(Scrollable).first);
     await _shot(t, '4_facture_signataires');
+  });
+
+  testWidgets('étiquette libre', (t) async {
+    await phone(t);
+    t.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('net.nfet.printing'), (call) async => null);
+    await t.pumpWidget(_app(const FreeLabelScreen()));
+    await t.pump(const Duration(milliseconds: 500));
+    await t.drag(find.byType(Scrollable).last, const Offset(0, -420));
+    await t.pump(const Duration(milliseconds: 500));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('../../build/captures/5_etiquette_libre.png'));
+  });
+
+  testWidgets('clients', (t) async {
+    await phone(t);
+    final s = AppStore.I;
+    for (final c in [
+      Client(name: 'SUPERMARCHÉ MARINA', phone: '25 30 00 00', address: 'Ouaga 2000'),
+      Client(name: 'Hôtel Silmandé', phone: '25 35 60 00', address: 'Ouagadougou'),
+      Client(name: 'Restaurant Le Verdoyant', phone: '70 00 11 22', address: 'Koulouba'),
+    ]) {
+      await s.upsertClient(c);
+    }
+    await t.pumpWidget(_app(HomeShell(onLogout: () {})));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Clients').last);
+    await _shot(t, '7_clients');
   });
 
   testWidgets('licence', (t) async {

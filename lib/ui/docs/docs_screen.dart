@@ -183,6 +183,8 @@ class _DocsScreenState extends State<DocsScreen> {
                         child: ChoiceChip(
                           label: const Text('Tous'),
                           selected: _filter == null,
+                          labelStyle: TextStyle(
+                              color: _filter == null ? Colors.white : EColors.blueDark, fontWeight: FontWeight.w700),
                           onSelected: (_) => setState(() => _filter = null),
                         ),
                       ),

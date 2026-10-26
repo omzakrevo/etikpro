@@ -75,11 +75,12 @@ ThemeData buildTheme() {
         shape: WidgetStatePropertyAll(btnShape),
         padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
         textStyle: const WidgetStatePropertyAll(
-            TextStyle(fontWeight: FontWeight.w700, fontSize: 15, letterSpacing: .2)),
+            TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w700, fontSize: 15, letterSpacing: .2)),
       );
 
   return ThemeData(
     useMaterial3: true,
+    fontFamily: 'Roboto',
     colorScheme: scheme,
     scaffoldBackgroundColor: EColors.bg,
     appBarTheme: const AppBarTheme(
@@ -87,7 +88,7 @@ ThemeData buildTheme() {
       backgroundColor: EColors.blue,
       foregroundColor: Colors.white,
       elevation: 0,
-      titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
+      titleTextStyle: TextStyle(fontFamily: 'Roboto', fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
     ),
     tabBarTheme: const TabBarThemeData(
       labelColor: Colors.white,
@@ -104,14 +105,14 @@ ThemeData buildTheme() {
         side: const BorderSide(color: EColors.blue, width: 1.6),
         shape: btnShape,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w700),
         backgroundColor: Colors.white,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: EColors.blue,
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w700),
       ),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
@@ -119,7 +120,7 @@ ThemeData buildTheme() {
       foregroundColor: Colors.white,
       elevation: 8,
       highlightElevation: 3,
-      extendedTextStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+      extendedTextStyle: TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w800, fontSize: 15),
     ),
     cardTheme: CardThemeData(
       color: EColors.card,
@@ -149,8 +150,8 @@ ThemeData buildTheme() {
       selectedColor: EColors.orange,
       secondarySelectedColor: EColors.orange,
       checkmarkColor: Colors.white,
-      labelStyle: const TextStyle(fontWeight: FontWeight.w600),
-      secondaryLabelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+      labelStyle: const TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.w600, color: EColors.blueDark),
+      secondaryLabelStyle: const TextStyle(fontFamily: 'Roboto', color: Colors.white, fontWeight: FontWeight.w700),
       side: BorderSide(color: Colors.blueGrey.shade100),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       elevation: 1,
@@ -165,7 +166,7 @@ ThemeData buildTheme() {
       iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
             color: s.contains(WidgetState.selected) ? EColors.orange : Colors.blueGrey.shade500,
           )),
-      labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
+      labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(fontFamily: 'Roboto', 
             fontSize: 12,
             fontWeight: s.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w500,
             color: s.contains(WidgetState.selected) ? EColors.blue : Colors.blueGrey.shade600,
@@ -176,7 +177,7 @@ ThemeData buildTheme() {
       elevation: 4,
       indicatorColor: const Color(0xFFFFE1C9),
       selectedIconTheme: const IconThemeData(color: EColors.orange),
-      selectedLabelTextStyle: const TextStyle(color: EColors.blue, fontWeight: FontWeight.w800),
+      selectedLabelTextStyle: const TextStyle(fontFamily: 'Roboto', color: EColors.blue, fontWeight: FontWeight.w800),
       unselectedIconTheme: IconThemeData(color: Colors.blueGrey.shade500),
     ),
     switchTheme: SwitchThemeData(
@@ -242,7 +243,7 @@ class GradientCard extends StatelessWidget {
           boxShadow: eShadow(shadow, 1.2),
         ),
         child: DefaultTextStyle.merge(
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(fontFamily: 'Roboto', color: Colors.white),
           child: IconTheme.merge(data: const IconThemeData(color: Colors.white), child: child),
         ),
       );
@@ -294,11 +295,11 @@ class StatTile extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(value,
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                    style: const TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
               ),
               Text(label,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white.withValues(alpha: .85), fontSize: 11.5)),
+                  style: TextStyle(fontFamily: 'Roboto', color: Colors.white.withValues(alpha: .85), fontSize: 11.5)),
             ]),
           ),
         ]),
@@ -345,7 +346,7 @@ class GradientButton extends StatelessWidget {
               Flexible(
                 child: Text(label,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: const TextStyle(fontFamily: 'Roboto', 
                         color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
               ),
             ]),

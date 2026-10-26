@@ -486,7 +486,7 @@ class _DocEditScreenState extends State<DocEditScreen> {
                       if (context.mounted) snack(context, 'Signataires enregistrés par défaut pour : ${d.type.label}');
                     },
                     icon: const Icon(Icons.push_pin_outlined),
-                    label: Text('Par défaut pour les ${d.type.label.toLowerCase()}s'),
+                    label: Text('Garder par défaut (${d.type.label})'),
                   ),
                 ),
               ]),
