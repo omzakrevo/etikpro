@@ -10,6 +10,7 @@ Conçue pour les entreprises qui conditionnent et livrent des produits (abattoir
 
 Sur chaque étiquette :
 
+- **logo de l'entreprise** (choisi dans Réglages › Mon entreprise, converti en noir et blanc pour les imprimantes thermiques, affichable ou non à chaque impression) ;
 - nom de l'entreprise (sur bande noire) et numéro(s) de téléphone ;
 - nom du produit ;
 - **date d'abattage** (libellé modifiable : fabrication, production, pêche…) ;
@@ -80,7 +81,7 @@ Format d'un modèle de document :
 | `titleAlign` | `left`, `center`, `right` |
 | autres | `showLogo`, `showCompanyBlock`, `showSignatures`, `headerMaxHeightMm`, `footerMaxHeightMm`, `marginMm`, `fontSize`, `textColor` |
 
-Format d'un style d'étiquette : `"kind": "etiquette"` avec `companyBand`, `showPhone`, `showQr`, `showBorder`, `showWeight`, `showLot`, `showPrice`, `fontScale`, `expiryLabel`, `tempLabel`, `durationLabel`.
+Format d'un style d'étiquette : `"kind": "etiquette"` avec `companyBand`, `showLogo`, `showPhone`, `showQr`, `showBorder`, `showWeight`, `showLot`, `showPrice`, `fontScale`, `expiryLabel`, `tempLabel`, `durationLabel`.
 
 Un fichier peut contenir un modèle seul, une liste, ou `{ "modeles": [ … ] }`.
 
@@ -150,4 +151,5 @@ tools/         outil d'administration des licences
 licences/      licences.json + page admin.html (à mettre dans le dépôt etikpro-licences)
 modeles/       exemples de modèles JSON
 assets/fonts/  polices Liberation (licence SIL OFL)
+assets/logo/   logo ETIKPRO (icône, logo complet, SVG source)
 ```

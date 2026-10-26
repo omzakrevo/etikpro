@@ -22,6 +22,7 @@ class LabelData {
   final String lot;
   final String price; // texte "2 500 FCFA"
   final String extra;
+  final Uint8List? logo; // logo de l'entreprise (PNG/JPG)
 
   const LabelData({
     required this.company,
@@ -36,6 +37,7 @@ class LabelData {
     this.lot = '',
     this.price = '',
     this.extra = '',
+    this.logo,
   });
 
   String get qrText => [
@@ -87,8 +89,9 @@ pw.Widget buildLabelWidget(
   double shrink(double widthEm, double size, double avail) =>
       widthEm * size <= avail || widthEm == 0 ? 1 : avail / (widthEm * size);
 
-  pw.Widget line(String t, double k, {bool bold = false, bool italic = false}) {
-    final f = shrink(m.width(t, isBold: bold), fs * k, textW);
+  pw.Widget line(String t, double k,
+      {bool bold = false, bool italic = false, double? avail}) {
+    final f = shrink(m.width(t, isBold: bold), fs * k, avail ?? textW);
     return pw.Text(t, maxLines: 1, style: st(k * f, bold: bold, italic: italic));
   }
 
@@ -111,17 +114,27 @@ pw.Widget buildLabelWidget(
     if (s.showPrice && d.price.isNotEmpty) d.price,
   ].join('  •  ');
 
+  // ---------- En-tête : [logo] + bande entreprise, téléphone, produit ----------
+  final showPhone = s.showPhone && d.phone.isNotEmpty;
+  final showProduct = s.showProduct && d.product.isNotEmpty;
+  final hasLogo = s.showLogo && d.logo != null && d.logo!.isNotEmpty;
+  final headH = fs * 1.16 * (1.1 + (showPhone ? 0.95 : 0) + (showProduct ? 1.35 : 0)) +
+      0.6 * _mm;
+  final logoSize = hasLogo ? headH.clamp(4 * _mm, textW * 0.34) : 0.0;
+  final logoGap = hasLogo ? 1.2 * _mm : 0.0;
+  final headW = textW - logoSize - logoGap;
+
   final bandPad = 1.2 * _mm;
   final companyText = d.company.toUpperCase();
-  final bandF = shrink(m.width(companyText, isBold: true), fs * 1.05, textW - 2 * bandPad);
+  final bandF = shrink(m.width(companyText, isBold: true), fs * 1.05, headW - 2 * bandPad);
 
-  final text = pw.Column(
+  final headLines = pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
-    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    mainAxisSize: pw.MainAxisSize.min,
     children: [
       if (s.companyBand)
         pw.Container(
-          width: textW,
+          width: headW,
           color: black,
           padding: pw.EdgeInsets.symmetric(horizontal: bandPad, vertical: 0.3 * _mm),
           child: pw.Text(companyText,
@@ -129,9 +142,29 @@ pw.Widget buildLabelWidget(
               style: st(1.05 * bandF, bold: true).copyWith(color: PdfColors.white)),
         )
       else
-        line(companyText, 1.1, bold: true),
-      if (s.showPhone && d.phone.isNotEmpty) line('Tél : ${d.phone}', 0.9),
-      if (s.showProduct && d.product.isNotEmpty) line(d.product, 1.3, bold: true),
+        line(companyText, 1.1, bold: true, avail: headW),
+      if (showPhone) line('Tél : ${d.phone}', 0.9, avail: headW),
+      if (showProduct) line(d.product, 1.3, bold: true, avail: headW),
+    ],
+  );
+
+  final header = hasLogo
+      ? pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+          pw.SizedBox(
+            width: logoSize,
+            height: logoSize,
+            child: pw.Image(pw.MemoryImage(d.logo!), fit: pw.BoxFit.contain),
+          ),
+          pw.SizedBox(width: logoGap),
+          headLines,
+        ])
+      : headLines;
+
+  final text = pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    children: [
+      header,
       kv(d.dateLabel, fmtDate(d.productionDate)),
       kv(s.expiryLabel, fmtDate(d.expiryDate), strong: true),
       if (d.storageTemp.isNotEmpty) kv(s.tempLabel, d.storageTemp),

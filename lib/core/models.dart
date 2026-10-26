@@ -19,6 +19,7 @@ class Company {
   String ifu; // N° IFU
   String rccm;
   String? logoB64;
+  String? labelLogoB64; // logo imprimé sur les étiquettes
   String? headerB64; // en-tête des documents (image)
   String? footerB64; // pied de page des documents (image)
   String currency;
@@ -36,6 +37,7 @@ class Company {
     this.ifu = '',
     this.rccm = '',
     this.logoB64,
+    this.labelLogoB64,
     this.headerB64,
     this.footerB64,
     this.currency = 'FCFA',
@@ -57,6 +59,7 @@ class Company {
         'ifu': ifu,
         'rccm': rccm,
         'logoB64': logoB64,
+        'labelLogoB64': labelLogoB64,
         'headerB64': headerB64,
         'footerB64': footerB64,
         'currency': currency,
@@ -75,6 +78,7 @@ class Company {
         ifu: j['ifu'] ?? '',
         rccm: j['rccm'] ?? '',
         logoB64: j['logoB64'],
+        labelLogoB64: j['labelLogoB64'],
         headerB64: j['headerB64'],
         footerB64: j['footerB64'],
         currency: j['currency'] ?? 'FCFA',

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -32,6 +35,10 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
   late String _formatId = s.printer.defaultFormatId;
   late String _styleId = widget.product.labelStyleId;
   bool _busy = false;
+  late final Uint8List? _logo = s.company.labelLogoB64 == null
+      ? null
+      : base64Decode(s.company.labelLogoB64!);
+  bool _showLogo = true;
 
   LabelFormat get _format => builtinLabelFormats.firstWhere((f) => f.id == _formatId,
       orElse: () => builtinLabelFormats[1]);
@@ -55,6 +62,7 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
           ? '${fmtAmount(w.isEmpty ? p.price : p.price * parseNum(w))} ${s.company.currency}'
           : '',
       extra: _extra.text.trim(),
+      logo: _showLogo ? _logo : null,
     );
   }
 
@@ -212,6 +220,20 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
         ],
         onChanged: (v) => setState(() => _styleId = v!),
       ),
+      if (_logo != null)
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _showLogo,
+          onChanged: (v) => setState(() => _showLogo = v),
+          secondary: Image.memory(_logo, width: 36, height: 36),
+          title: const Text('Logo sur l’étiquette'),
+        )
+      else
+        TextButton.icon(
+          onPressed: null,
+          icon: const Icon(Icons.info_outline, size: 18),
+          label: const Text('Ajoutez un logo dans Réglages › Mon entreprise'),
+        ),
       const SizedBox(height: 12),
       Row(children: [
         const Text('Nombre d’étiquettes', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -271,7 +293,7 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
     final preview = Container(
       color: cs.surfaceContainerHighest,
       child: PdfPreview(
-        key: ValueKey('$_formatId$_styleId$_prod$_exp${_weight.text}${_lot.text}${_extra.text}$_skip${isA4 ? _copies : 1}'),
+        key: ValueKey('$_showLogo$_formatId$_styleId$_prod$_exp${_weight.text}${_lot.text}${_extra.text}$_skip${isA4 ? _copies : 1}'),
         build: (_) => buildLabelsPdf(
             data: _data,
             style: _style,

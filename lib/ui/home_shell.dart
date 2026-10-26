@@ -53,7 +53,11 @@ class _HomeShellState extends State<HomeShell> {
             leading: Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Column(children: [
-                Icon(Icons.local_offer, color: Theme.of(context).colorScheme.primary, size: 32),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset('assets/logo/logo_icon.png', width: 44, height: 44),
+                ),
+                const SizedBox(height: 4),
                 const Text('ETIKPRO', style: TextStyle(fontWeight: FontWeight.w800)),
               ]),
             ),

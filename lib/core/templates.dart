@@ -127,6 +127,7 @@ class LabelStyle {
   String id;
   String name;
   bool companyBand; // nom de l'entreprise sur bande noire
+  bool showLogo; // logo de l'entreprise (si défini)
   bool showPhone;
   bool showQr;
   bool showBorder;
@@ -144,6 +145,7 @@ class LabelStyle {
     required this.id,
     required this.name,
     this.companyBand = true,
+    this.showLogo = true,
     this.showPhone = true,
     this.showQr = false,
     this.showBorder = false,
@@ -163,6 +165,7 @@ class LabelStyle {
         'id': id,
         'name': name,
         'companyBand': companyBand,
+        'showLogo': showLogo,
         'showPhone': showPhone,
         'showQr': showQr,
         'showBorder': showBorder,
@@ -181,6 +184,7 @@ class LabelStyle {
         id: (j['id'] ?? newId()).toString(),
         name: (j['name'] ?? 'Style importé').toString(),
         companyBand: j['companyBand'] ?? true,
+        showLogo: j['showLogo'] ?? true,
         showPhone: j['showPhone'] ?? true,
         showQr: j['showQr'] ?? false,
         showBorder: j['showBorder'] ?? false,

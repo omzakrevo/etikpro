@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:image/image.dart' as img;
 
+import 'package:etikpro/core/image_tools.dart';
 import 'package:etikpro/core/licence.dart';
 import 'package:etikpro/core/models.dart';
 import 'package:etikpro/core/store.dart';
@@ -217,6 +218,37 @@ void main() {
           }
         }
       }
+    });
+
+    test('étiquettes avec logo', () async {
+      final raw = File('assets/logo/logo_icon.png').readAsBytesSync();
+      final mono = base64Decode(prepareLabelLogo(raw, mono: true));
+      final gray = base64Decode(prepareLabelLogo(raw, mono: false));
+      LabelData withLogo(Uint8List l) => LabelData(
+            company: data.company,
+            phone: data.phone,
+            product: data.product,
+            dateLabel: data.dateLabel,
+            productionDate: data.productionDate,
+            expiryDate: data.expiryDate,
+            storageTemp: data.storageTemp,
+            durationText: data.durationText,
+            weight: data.weight,
+            lot: data.lot,
+            extra: data.extra,
+            logo: l,
+          );
+      for (final f in builtinLabelFormats.where((f) => f.mode != PrintMode.a4 || f.id == 'a4_24')) {
+        for (final st in [builtinLabelStyles[0], builtinLabelStyles[2], builtinLabelStyles[3]]) {
+          final bytes = await buildLabelsPdf(
+              data: withLogo(st.id == 'encadre' ? gray : mono), style: st, format: f, copies: f.mode == PrintMode.a4 ? 24 : 1);
+          File('build/apercus/logo_${f.id}_${st.id}.pdf').writeAsBytesSync(bytes);
+        }
+      }
+      // logo désactivé par le style
+      final noLogo = LabelStyle(id: 'x', name: 'x', showLogo: false);
+      expect((await buildLabelsPdf(data: withLogo(mono), style: noLogo, format: builtinLabelFormats[1])).length,
+          greaterThan(500));
     });
 
     test('documents (tous types et modèles)', () async {

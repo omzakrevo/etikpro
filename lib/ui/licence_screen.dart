@@ -56,14 +56,8 @@ class _LicenceScreenState extends State<LicenceScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Icon(Icons.local_offer, size: 64, color: cs.primary),
-              const SizedBox(height: 8),
-              Text('ETIKPRO',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.w800, color: cs.primary)),
+              Image.asset('assets/logo/logo_full.png', height: 110),
+              const SizedBox(height: 4),
               const Text('Étiquettes de traçabilité & documents commerciaux',
                   textAlign: TextAlign.center),
               const SizedBox(height: 28),

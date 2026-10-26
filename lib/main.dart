@@ -93,9 +93,7 @@ class _LicenceGateState extends State<LicenceGate> {
       return const Scaffold(
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.local_offer, size: 64, color: brandBlue),
-            SizedBox(height: 12),
-            Text('ETIKPRO', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+            Image(image: AssetImage('assets/logo/logo_full.png'), width: 280),
             SizedBox(height: 20),
             CircularProgressIndicator(),
           ]),

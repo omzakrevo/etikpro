@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/image_tools.dart';
 import '../../core/models.dart';
 import '../../core/store.dart';
 import '../../core/utils.dart';
@@ -95,6 +97,75 @@ class _CompanyScreenState extends State<CompanyScreen> {
     );
   }
 
+  bool _mono = true;
+
+  Future<void> _pickLabelLogo({Uint8List? from}) async {
+    try {
+      Uint8List? bytes = from;
+      if (bytes == null) {
+        final b64 = await pickImageB64();
+        if (b64 == null) return;
+        bytes = base64Decode(b64);
+      }
+      final processed = prepareLabelLogo(bytes, mono: _mono);
+      setState(() => c.labelLogoB64 = processed);
+    } catch (e) {
+      if (mounted) snack(context, '$e', error: true);
+    }
+  }
+
+  Widget _labelLogoCard() {
+    final b64 = c.labelLogoB64;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Logo des étiquettes', style: TextStyle(fontWeight: FontWeight.w700)),
+          Text('Imprimé en haut à gauche de chaque étiquette. Image carrée de préférence.',
+              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 8),
+          if (b64 != null)
+            Container(
+              height: 90,
+              width: 90,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+              ),
+              child: Image.memory(base64Decode(b64), fit: BoxFit.contain),
+            ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: _mono,
+            onChanged: (v) => setState(() => _mono = v),
+            title: const Text('Convertir en noir et blanc'),
+            subtitle: const Text('Recommandé pour les imprimantes thermiques (rendu net)'),
+          ),
+          Wrap(spacing: 4, children: [
+            TextButton.icon(
+              onPressed: () => _pickLabelLogo(),
+              icon: const Icon(Icons.image),
+              label: Text(b64 == null ? 'Choisir un logo' : 'Remplacer'),
+            ),
+            if (c.logoB64 != null)
+              TextButton.icon(
+                onPressed: () => _pickLabelLogo(from: base64Decode(c.logoB64!)),
+                icon: const Icon(Icons.content_copy),
+                label: const Text('Reprendre le logo des documents'),
+              ),
+            if (b64 != null)
+              TextButton.icon(
+                onPressed: () => setState(() => c.labelLogoB64 = null),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Retirer'),
+              ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,6 +191,8 @@ class _CompanyScreenState extends State<CompanyScreen> {
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(labelText: 'Téléphone 2'))),
           ]),
+          const SizedBox(height: 10),
+          _labelLogoCard(),
           const SectionTitle('Documents commerciaux'),
           TextField(controller: _address, decoration: const InputDecoration(labelText: 'Adresse')),
           const SizedBox(height: 10),
