@@ -42,8 +42,7 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
       : base64Decode(s.company.labelLogoB64!);
   bool _showLogo = true;
 
-  LabelFormat get _format => builtinLabelFormats.firstWhere((f) => f.id == _formatId,
-      orElse: () => builtinLabelFormats[1]);
+  LabelFormat get _format => s.formatById(_formatId);
   LabelStyle get _style => s.labelStyleById(_styleId);
 
   LabelData get _data {
@@ -205,20 +204,7 @@ class _LabelPrintScreenState extends State<LabelPrintScreen> {
         onChanged: (_) => setState(() {}),
       ),
       const SizedBox(height: 12),
-      DropdownButtonFormField<String>(
-        initialValue: _formatId,
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Format'),
-        items: [
-          for (final f in builtinLabelFormats)
-            DropdownMenuItem(value: f.id, child: Text(f.name, overflow: TextOverflow.ellipsis)),
-        ],
-        onChanged: (v) => setState(() {
-          _formatId = v!;
-          s.printer.defaultFormatId = v;
-          s.savePrinter();
-        }),
-      ),
+      FormatPicker(value: _formatId, onChanged: (f) => setState(() => _formatId = f.id)),
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         initialValue: s.allLabelStyles.any((e) => e.id == _styleId) ? _styleId : 'standard',

@@ -247,8 +247,38 @@ void main() {
       }
       // logo désactivé par le style
       final noLogo = LabelStyle(id: 'x', name: 'x', showLogo: false);
-      expect((await buildLabelsPdf(data: withLogo(mono), style: noLogo, format: builtinLabelFormats[1])).length,
+      expect((await buildLabelsPdf(data: withLogo(mono), style: noLogo, format: builtinLabelFormats.firstWhere((f) => f.id == 'tspl_50x30'))).length,
           greaterThan(500));
+    });
+
+    test('petites étiquettes : contenu simplifié, lisible', () async {
+      final logo = base64Decode(prepareLabelLogo(File('assets/logo/logo_icon.png').readAsBytesSync()));
+      final d = LabelData(
+        company: data.company,
+        phone: data.phone,
+        product: data.product,
+        dateLabel: data.dateLabel,
+        productionDate: data.productionDate,
+        expiryDate: data.expiryDate,
+        storageTemp: data.storageTemp,
+        durationText: data.durationText,
+        weight: data.weight,
+        lot: data.lot,
+        extra: data.extra,
+        logo: logo,
+      );
+      for (final id in ['tspl_25x15', 'tspl_30x15', 'tspl_30x20', 'tspl_35x25', 'tspl_40x20', 'tspl_40x25', 'tspl_50x25', 'pos_58_court']) {
+        final f = builtinLabelFormats.firstWhere((e) => e.id == id);
+        final b = await buildLabelsPdf(data: d, style: builtinLabelStyles.first, format: f);
+        File('build/apercus/petite_$id.pdf').writeAsBytesSync(b);
+      }
+      // format personnalisé
+      final perso = const LabelFormat(id: 'perso_32x18', name: 'Perso', widthMm: 32, heightMm: 18, mode: PrintMode.tspl);
+      final b = await buildLabelsPdf(data: d, style: builtinLabelStyles.first, format: perso, copies: 2);
+      File('build/apercus/petite_perso_32x18.pdf').writeAsBytesSync(b);
+      final back = LabelFormat.fromJson(perso.toJson());
+      expect(back.widthMm, 32);
+      expect(PrinterSettings.fromJson(PrinterSettings(customFormats: [perso]).toJson()).customFormats.single.heightMm, 18);
     });
 
     test('documents (tous types et modèles)', () async {
@@ -337,7 +367,7 @@ void main() {
         'texte': const FreeLabelData(lines: ['Une seule ligne de texte libre'], companyBand: false),
       };
       for (final e in cases.entries) {
-        for (final f in [builtinLabelFormats[1], builtinLabelFormats[0], builtinLabelFormats[5]]) {
+        for (final f in builtinLabelFormats.where((f) => ['tspl_50x30', 'tspl_40x30', 'tspl_30x20', 'pos_58'].contains(f.id))) {
           final b = await buildFreeLabelsPdf(data: e.value, format: f, copies: 3);
           expect(b.length, greaterThan(500));
           File('build/apercus/libre_${e.key}_${f.id}.pdf').writeAsBytesSync(b);

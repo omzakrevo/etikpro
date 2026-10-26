@@ -101,6 +101,25 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---------- Formats d'étiquettes ----------
+  List<LabelFormat> get labelFormats => [...printer.customFormats, ...builtinLabelFormats];
+
+  LabelFormat formatById(String id) => labelFormats.firstWhere((f) => f.id == id,
+      orElse: () => builtinLabelFormats.firstWhere((f) => f.id == 'tspl_40x30'));
+
+  Future<void> saveCustomFormat(LabelFormat f) async {
+    printer.customFormats.removeWhere((e) => e.id == f.id);
+    printer.customFormats.insert(0, f);
+    printer.defaultFormatId = f.id;
+    await savePrinter();
+  }
+
+  Future<void> deleteCustomFormat(String id) async {
+    printer.customFormats.removeWhere((e) => e.id == id);
+    if (printer.defaultFormatId == id) printer.defaultFormatId = 'tspl_40x30';
+    await savePrinter();
+  }
+
   // ---------- Produits ----------
   Future<void> upsertProduct(Product p) async {
     final i = products.indexWhere((e) => e.id == p.id);

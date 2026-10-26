@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -41,58 +42,98 @@ class LabelData {
   });
 
   String get qrText => [
-        company,
-        if (phone.isNotEmpty) 'Tel: $phone',
-        product,
-        '$dateLabel: ${fmtDate(productionDate)}',
-        'Peremption: ${fmtDate(expiryDate)}',
-        if (storageTemp.isNotEmpty) 'Conservation: $storageTemp',
-        if (lot.isNotEmpty) 'Lot: $lot',
-      ].join('\n');
+    company,
+    if (phone.isNotEmpty) 'Tel: $phone',
+    product,
+    '$dateLabel: ${fmtDate(productionDate)}',
+    'Peremption: ${fmtDate(expiryDate)}',
+    if (storageTemp.isNotEmpty) 'Conservation: $storageTemp',
+    if (lot.isNotEmpty) 'Lot: $lot',
+  ].join('\n');
 }
 
 const _mm = PdfPageFormat.mm;
 
 /// Contenu d'une étiquette, dessiné dans une boîte de [w] × [h] mm.
 /// Marges très faibles (1 mm) : l'étiquette est collée directement sur le colis.
-pw.Widget buildLabelWidget(
-    LabelData d, LabelStyle s, double wMm, double hMm, TextMeasure m) {
+pw.Widget buildLabelWidget(LabelData d, LabelStyle s, double wMm, double hMm, TextMeasure m) {
   const margin = 1.0 * _mm;
   final w = wMm * _mm, h = hMm * _mm;
 
-  // Nombre de lignes de texte, pour calculer une taille de police lisible.
-  var lines = 4.6; // bande + produit (x1.4) + 2 dates
-  if (s.showPhone && d.phone.isNotEmpty) lines += 1;
-  if (d.storageTemp.isNotEmpty) lines += 1;
-  if (d.durationText.isNotEmpty) lines += 1;
-  final hasMeta = (s.showLot && d.lot.isNotEmpty) ||
+  // ---------- Petites étiquettes ----------
+  // On calcule la taille de texte ; si elle devient illisible, on retire d'abord
+  // les infos secondaires (mention, durée, lot/poids, téléphone) au lieu d'écrire minuscule.
+  final metaAvailable =
+      (s.showLot && d.lot.isNotEmpty) ||
       (s.showWeight && d.weight.isNotEmpty) ||
       (s.showPrice && d.price.isNotEmpty);
-  if (hasMeta) lines += 1;
-  if (d.extra.isNotEmpty) lines += 0.9;
+  var showPhone = s.showPhone && d.phone.isNotEmpty;
+  var showDur = d.durationText.isNotEmpty;
+  var showMeta = metaAvailable;
+  var showExtra = d.extra.isNotEmpty;
+  final showTemp = d.storageTemp.isNotEmpty;
+  final showProduct = s.showProduct && d.product.isNotEmpty;
   final qrSize = s.showQr ? ((h - 2 * margin) * 0.62).clamp(0.0, w * 0.32) : 0.0;
   final textW = w - 2 * margin - (s.showQr ? qrSize + 1.5 * _mm : 0);
-  var fs = ((h - 2 * margin) / (lines * 1.18)) * s.fontScale;
+
+  double calc() {
+    var l = 2.1 + (showProduct ? 1.4 : 0) + 2; // bande + produit + 2 dates
+    if (showPhone) l += 1;
+    if (showTemp) l += 1;
+    if (showDur) l += 1;
+    if (showMeta) l += 1;
+    if (showExtra) l += 0.9;
+    return ((h - 2 * margin) / (l * 1.18)) * s.fontScale;
+  }
+
+  const minReadable = 5.8; // points
+  var fs = calc();
+  for (final drop in <void Function()>[
+    () => showExtra = false,
+    () => showDur = false,
+    () => showMeta = false,
+    () => showPhone = false,
+  ]) {
+    if (fs >= minReadable) break;
+    drop();
+    fs = calc();
+  }
+  // Libellés courts sur les petites étiquettes (« Péremption » au lieu de « Date de péremption »)
+  final compact = fs < 7 || wMm < 42;
   fs = fs.clamp(4.0, 13.0);
+  final dateFmt = wMm < 32 ? (DateTime x) => DateFormat('dd/MM/yy').format(x) : fmtDate;
+  String shortDate(String l) {
+    final t = l.replaceFirst(RegExp(r"^date\s+(d'|d’|de\s+|du\s+)", caseSensitive: false), '').trim();
+    return t.isEmpty ? l : t[0].toUpperCase() + t.substring(1);
+  }
+
+  final prodLabel = compact ? shortDate(d.dateLabel) : d.dateLabel;
+  final expLabel = compact
+      ? (s.expiryLabel.toLowerCase().contains('péremption') ? 'Péremption' : shortDate(s.expiryLabel))
+      : s.expiryLabel;
+  final tempLabel = compact ? 'Conserv.' : s.tempLabel;
+  final durLabel = compact ? 'Durée' : s.durationLabel;
 
   final black = PdfColors.black;
-  pw.TextStyle st(double k, {bool bold = false, bool italic = false}) =>
-      pw.TextStyle(
-        fontSize: fs * k,
-        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-        fontStyle: italic ? pw.FontStyle.italic : pw.FontStyle.normal,
-        color: black,
-        lineSpacing: 0,
-      );
+  pw.TextStyle st(double k, {bool bold = false, bool italic = false}) => pw.TextStyle(
+    fontSize: fs * k,
+    fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+    fontStyle: italic ? pw.FontStyle.italic : pw.FontStyle.normal,
+    color: black,
+    lineSpacing: 0,
+  );
 
   // Chaque ligne trop longue est réduite (jamais coupée) : on mesure sa largeur.
   double shrink(double widthEm, double size, double avail) =>
       widthEm * size <= avail || widthEm == 0 ? 1 : avail / (widthEm * size);
 
-  pw.Widget line(String t, double k,
-      {bool bold = false, bool italic = false, double? avail}) {
+  pw.Widget line(String t, double k, {bool bold = false, bool italic = false, double? avail}) {
     final f = shrink(m.width(t, isBold: bold), fs * k, avail ?? textW);
-    return pw.Text(t, maxLines: 1, style: st(k * f, bold: bold, italic: italic));
+    return pw.Text(
+      t,
+      maxLines: 1,
+      style: st(k * f, bold: bold, italic: italic),
+    );
   }
 
   pw.Widget kv(String k, String v, {bool strong = false}) {
@@ -101,25 +142,27 @@ pw.Widget buildLabelWidget(
     final f = shrink(wEm, fs, textW);
     return pw.RichText(
       maxLines: 1,
-      text: pw.TextSpan(children: [
-        pw.TextSpan(text: '$k : ', style: st(kk * f)),
-        pw.TextSpan(text: v, style: st(kvv * f, bold: true)),
-      ]),
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(text: '$k : ', style: st(kk * f)),
+          pw.TextSpan(text: v, style: st(kvv * f, bold: true)),
+        ],
+      ),
     );
   }
 
-  final meta = <String>[
-    if (s.showLot && d.lot.isNotEmpty) 'Lot ${d.lot}',
-    if (s.showWeight && d.weight.isNotEmpty) d.weight,
-    if (s.showPrice && d.price.isNotEmpty) d.price,
-  ].join('  •  ');
+  final meta = !showMeta
+      ? ''
+      : <String>[
+          if (s.showLot && d.lot.isNotEmpty) 'Lot ${d.lot}',
+          if (s.showWeight && d.weight.isNotEmpty) d.weight,
+          if (s.showPrice && d.price.isNotEmpty) d.price,
+        ].join('  •  ');
 
   // ---------- En-tête : [logo] + bande entreprise, téléphone, produit ----------
-  final showPhone = s.showPhone && d.phone.isNotEmpty;
-  final showProduct = s.showProduct && d.product.isNotEmpty;
-  final hasLogo = s.showLogo && d.logo != null && d.logo!.isNotEmpty;
-  final headH = fs * 1.16 * (1.1 + (showPhone ? 0.95 : 0) + (showProduct ? 1.35 : 0)) +
-      0.6 * _mm;
+  // Logo retiré sur les toutes petites étiquettes (il mangerait la place du texte)
+  final hasLogo = s.showLogo && d.logo != null && d.logo!.isNotEmpty && !(wMm < 35 && hMm < 22);
+  final headH = fs * 1.16 * (1.1 + (showPhone ? 0.95 : 0) + (showProduct ? 1.35 : 0)) + 0.6 * _mm;
   final logoSize = hasLogo ? headH.clamp(4 * _mm, textW * 0.34) : 0.0;
   final logoGap = hasLogo ? 1.2 * _mm : 0.0;
   final headW = textW - logoSize - logoGap;
@@ -137,9 +180,11 @@ pw.Widget buildLabelWidget(
           width: headW,
           color: black,
           padding: pw.EdgeInsets.symmetric(horizontal: bandPad, vertical: 0.3 * _mm),
-          child: pw.Text(companyText,
-              maxLines: 1,
-              style: st(1.05 * bandF, bold: true).copyWith(color: PdfColors.white)),
+          child: pw.Text(
+            companyText,
+            maxLines: 1,
+            style: st(1.05 * bandF, bold: true).copyWith(color: PdfColors.white),
+          ),
         )
       else
         line(companyText, 1.1, bold: true, avail: headW),
@@ -149,15 +194,18 @@ pw.Widget buildLabelWidget(
   );
 
   final header = hasLogo
-      ? pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
-          pw.SizedBox(
-            width: logoSize,
-            height: logoSize,
-            child: pw.Image(pw.MemoryImage(d.logo!), fit: pw.BoxFit.contain),
-          ),
-          pw.SizedBox(width: logoGap),
-          headLines,
-        ])
+      ? pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.SizedBox(
+              width: logoSize,
+              height: logoSize,
+              child: pw.Image(pw.MemoryImage(d.logo!), fit: pw.BoxFit.contain),
+            ),
+            pw.SizedBox(width: logoGap),
+            headLines,
+          ],
+        )
       : headLines;
 
   final text = pw.Column(
@@ -165,12 +213,12 @@ pw.Widget buildLabelWidget(
     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
     children: [
       header,
-      kv(d.dateLabel, fmtDate(d.productionDate)),
-      kv(s.expiryLabel, fmtDate(d.expiryDate), strong: true),
-      if (d.storageTemp.isNotEmpty) kv(s.tempLabel, d.storageTemp),
-      if (d.durationText.isNotEmpty) kv(s.durationLabel, d.durationText),
+      kv(prodLabel, dateFmt(d.productionDate)),
+      kv(expLabel, dateFmt(d.expiryDate), strong: true),
+      if (showTemp) kv(tempLabel, d.storageTemp),
+      if (showDur) kv(durLabel, d.durationText),
       if (meta.isNotEmpty) line(meta, 0.95, bold: true),
-      if (d.extra.isNotEmpty) line(d.extra, 0.85, italic: true),
+      if (showExtra) line(d.extra, 0.85, italic: true),
     ],
   );
 
@@ -198,7 +246,8 @@ pw.Widget buildLabelWidget(
     decoration: s.showBorder
         ? pw.BoxDecoration(
             border: pw.Border.all(color: black, width: 0.8),
-            borderRadius: pw.BorderRadius.circular(1.2 * _mm))
+            borderRadius: pw.BorderRadius.circular(1.2 * _mm),
+          )
         : null,
     child: body,
   );
@@ -215,8 +264,7 @@ Future<Uint8List> layoutLabelsPdf({
   int copies = 1,
   int skipCells = 0, // planches A4 entamées : cases déjà utilisées
 }) async {
-  final doc = pw.Document(
-      title: title, author: 'ETIKPRO', theme: await PdfFonts.theme('helvetica'));
+  final doc = pw.Document(title: title, author: 'ETIKPRO', theme: await PdfFonts.theme('helvetica'));
   final m = await PdfFonts.measure();
   copies = copies.clamp(1, 5000);
 
@@ -240,18 +288,21 @@ Future<Uint8List> layoutLabelsPdf({
         final n = p * per + r * format.cols + c;
         if (n < skipCells || idx >= copies) continue;
         idx++;
-        cells.add(pw.Positioned(
-          left: (format.sheetMarginLeftMm + c * (format.widthMm + format.gapXMm)) * _mm,
-          top: (format.sheetMarginTopMm + r * (format.heightMm + format.gapYMm)) * _mm,
-          child: cell(format.widthMm, format.heightMm, m),
-        ));
+        cells.add(
+          pw.Positioned(
+            left: (format.sheetMarginLeftMm + c * (format.widthMm + format.gapXMm)) * _mm,
+            top: (format.sheetMarginTopMm + r * (format.heightMm + format.gapYMm)) * _mm,
+            child: cell(format.widthMm, format.heightMm, m),
+          ),
+        );
       }
     }
-    doc.addPage(pw.Page(
-      pageFormat: PdfPageFormat.a4.copyWith(
-          marginLeft: 0, marginRight: 0, marginTop: 0, marginBottom: 0),
-      build: (_) => pw.Stack(children: cells),
-    ));
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4.copyWith(marginLeft: 0, marginRight: 0, marginTop: 0, marginBottom: 0),
+        build: (_) => pw.Stack(children: cells),
+      ),
+    );
   }
   return doc.save();
 }
@@ -263,14 +314,13 @@ Future<Uint8List> buildLabelsPdf({
   required LabelFormat format,
   int copies = 1,
   int skipCells = 0,
-}) =>
-    layoutLabelsPdf(
-      cell: (w, h, m) => buildLabelWidget(data, style, w, h, m),
-      format: format,
-      title: 'Étiquettes ${data.product}',
-      copies: copies,
-      skipCells: skipCells,
-    );
+}) => layoutLabelsPdf(
+  cell: (w, h, m) => buildLabelWidget(data, style, w, h, m),
+  format: format,
+  title: 'Étiquettes ${data.product}',
+  copies: copies,
+  skipCells: skipCells,
+);
 
 // ---------------------------------------------------------------------------
 // Étiquette libre : l'entreprise écrit ce qu'elle veut.
@@ -302,14 +352,14 @@ class FreeLabelData {
   });
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'lines': lines,
-        'companyBand': companyBand,
-        'border': border,
-        'qr': qr,
-        'align': align,
-        'fontScale': fontScale,
-      };
+    'title': title,
+    'lines': lines,
+    'companyBand': companyBand,
+    'border': border,
+    'qr': qr,
+    'align': align,
+    'fontScale': fontScale,
+  };
 }
 
 pw.Widget buildFreeLabelWidget(FreeLabelData d, double wMm, double hMm, TextMeasure m) {
@@ -332,10 +382,10 @@ pw.Widget buildFreeLabelWidget(FreeLabelData d, double wMm, double hMm, TextMeas
   final fs = (((h - 2 * margin) / (units * 1.2)) * d.fontScale).clamp(4.0, 22.0);
 
   pw.TextStyle st(double k, {bool bold = false, PdfColor? color}) => pw.TextStyle(
-        fontSize: fs * k,
-        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-        color: color ?? PdfColors.black,
-      );
+    fontSize: fs * k,
+    fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+    color: color ?? PdfColors.black,
+  );
   double shrink(double em, double size, double avail) =>
       em * size <= avail || em == 0 ? 1 : avail / (em * size);
 
@@ -349,17 +399,21 @@ pw.Widget buildFreeLabelWidget(FreeLabelData d, double wMm, double hMm, TextMeas
       return pw.RichText(
         maxLines: 1,
         textAlign: center ? pw.TextAlign.center : pw.TextAlign.left,
-        text: pw.TextSpan(children: [
-          pw.TextSpan(text: key, style: st(k * 0.92 * f)),
-          pw.TextSpan(text: val, style: st(k * f, bold: true)),
-        ]),
+        text: pw.TextSpan(
+          children: [
+            pw.TextSpan(text: key, style: st(k * 0.92 * f)),
+            pw.TextSpan(text: val, style: st(k * f, bold: true)),
+          ],
+        ),
       );
     }
     final f = shrink(m.width(t, isBold: bold), fs * k, avail);
-    return pw.Text(t,
-        maxLines: 1,
-        textAlign: center ? pw.TextAlign.center : pw.TextAlign.left,
-        style: st(k * f, bold: bold));
+    return pw.Text(
+      t,
+      maxLines: 1,
+      textAlign: center ? pw.TextAlign.center : pw.TextAlign.left,
+      style: st(k * f, bold: bold),
+    );
   }
 
   // En-tête (logo + entreprise + téléphone)
@@ -377,10 +431,15 @@ pw.Widget buildFreeLabelWidget(FreeLabelData d, double wMm, double hMm, TextMeas
           color: PdfColors.black,
           padding: const pw.EdgeInsets.symmetric(horizontal: 1.2 * _mm, vertical: 0.3 * _mm),
           alignment: center ? pw.Alignment.center : pw.Alignment.centerLeft,
-          child: pw.Text(companyText,
-              maxLines: 1,
-              style: st(1.05 * shrink(m.width(companyText, isBold: true), fs * 1.05, headW - 2.4 * _mm),
-                  bold: true, color: PdfColors.white)),
+          child: pw.Text(
+            companyText,
+            maxLines: 1,
+            style: st(
+              1.05 * shrink(m.width(companyText, isBold: true), fs * 1.05, headW - 2.4 * _mm),
+              bold: true,
+              color: PdfColors.white,
+            ),
+          ),
         )
       else if (hasCompany)
         line(companyText, 1.1, headW, bold: true),
@@ -389,14 +448,17 @@ pw.Widget buildFreeLabelWidget(FreeLabelData d, double wMm, double hMm, TextMeas
     ],
   );
   final header = hasLogo
-      ? pw.Row(children: [
-          pw.SizedBox(
+      ? pw.Row(
+          children: [
+            pw.SizedBox(
               width: logoSize,
               height: logoSize,
-              child: pw.Image(pw.MemoryImage(d.logo!), fit: pw.BoxFit.contain)),
-          pw.SizedBox(width: 1.2 * _mm),
-          pw.SizedBox(width: headW, child: head),
-        ])
+              child: pw.Image(pw.MemoryImage(d.logo!), fit: pw.BoxFit.contain),
+            ),
+            pw.SizedBox(width: 1.2 * _mm),
+            pw.SizedBox(width: headW, child: head),
+          ],
+        )
       : pw.SizedBox(width: textW, child: head);
 
   final text = pw.Column(
@@ -417,16 +479,24 @@ pw.Widget buildFreeLabelWidget(FreeLabelData d, double wMm, double hMm, TextMeas
     decoration: d.border
         ? pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.black, width: 0.8),
-            borderRadius: pw.BorderRadius.circular(1.2 * _mm))
+            borderRadius: pw.BorderRadius.circular(1.2 * _mm),
+          )
         : null,
-    child: pw.Row(children: [
-      pw.SizedBox(width: textW, height: h - 2 * margin, child: text),
-      if (qrSize > 0) ...[
-        pw.SizedBox(width: 1.5 * _mm),
-        pw.BarcodeWidget(
-            barcode: pw.Barcode.qrCode(), data: d.qr, width: qrSize, height: qrSize, drawText: false),
+    child: pw.Row(
+      children: [
+        pw.SizedBox(width: textW, height: h - 2 * margin, child: text),
+        if (qrSize > 0) ...[
+          pw.SizedBox(width: 1.5 * _mm),
+          pw.BarcodeWidget(
+            barcode: pw.Barcode.qrCode(),
+            data: d.qr,
+            width: qrSize,
+            height: qrSize,
+            drawText: false,
+          ),
+        ],
       ],
-    ]),
+    ),
   );
 }
 
@@ -435,11 +505,10 @@ Future<Uint8List> buildFreeLabelsPdf({
   required LabelFormat format,
   int copies = 1,
   int skipCells = 0,
-}) =>
-    layoutLabelsPdf(
-      cell: (w, h, m) => buildFreeLabelWidget(data, w, h, m),
-      format: format,
-      title: 'Étiquettes ${data.title}',
-      copies: copies,
-      skipCells: skipCells,
-    );
+}) => layoutLabelsPdf(
+  cell: (w, h, m) => buildFreeLabelWidget(data, w, h, m),
+  format: format,
+  title: 'Étiquettes ${data.title}',
+  copies: copies,
+  skipCells: skipCells,
+);

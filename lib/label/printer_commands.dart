@@ -107,3 +107,6 @@ List<int> buildEscPos(MonoBitmap bmp, {int copies = 1, bool cut = true}) {
   }
   return out.takeBytes();
 }
+
+/// TSPL : calibrage automatique de la taille des étiquettes et de l'espace (GAP).
+List<int> buildTsplCalibrate() => ascii.encode('GAPDETECT\r\nHOME\r\n');

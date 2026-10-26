@@ -6,6 +6,7 @@ import '../../core/store.dart';
 import '../../label/bt.dart';
 import '../../label/label_pdf.dart';
 import '../../label/label_printer.dart';
+import '../../label/printer_commands.dart';
 import '../common.dart';
 import '../theme.dart';
 
@@ -130,28 +131,56 @@ class _PrinterSheet extends StatefulWidget {
   State<_PrinterSheet> createState() => _PrinterSheetState();
 }
 
-class _PrinterSheetState extends State<_PrinterSheet> {
+class _PrinterSheetState extends State<_PrinterSheet> with WidgetsBindingObserver {
   final s = AppStore.I;
   List<BtDevice> _devices = [];
   bool _loading = true;
   String? _connecting;
   String? _error;
-  bool _btOn = true;
+  bool? _btOn = true;
+  bool _permBlocked = false;
+  bool _permMissing = false;
+  bool _calibrating = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Retour depuis les réglages Bluetooth / autorisations : on relit la liste.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _load();
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _permBlocked = false;
+      _permMissing = false;
     });
     try {
-      _btOn = await btEnabled();
-      _devices = _btOn ? await btPaired() : [];
+      // 1) Autorisation d'abord (sinon Android dit à tort que le Bluetooth est éteint)
+      final perm = await btRequestPermission();
+      if (perm != BtPermission.granted) {
+        _permBlocked = perm == BtPermission.permanentlyDenied;
+        _permMissing = true;
+        _devices = [];
+      } else {
+        // 2) Liste des appareils appairés (fonctionne même si l'état est inconnu)
+        _devices = await btPaired();
+        // 3) État du Bluetooth, seulement pour informer
+        _btOn = await btEnabled();
+      }
     } catch (e) {
       _error = '$e'.replaceFirst('Exception: ', '');
     }
@@ -159,7 +188,7 @@ class _PrinterSheetState extends State<_PrinterSheet> {
   }
 
   bool _looksLikePrinter(BtDevice d) => RegExp(
-          r'print|xp-|xprinter|pos|thermal|label|hprt|gprinter|tsc|zebra|mpt|rpp|bt-|58|80|p50|p58|q2|ql',
+          r'print|xp-|xprinter|pos|thermal|label|hprt|gprinter|tsc|zebra|mpt|rpp|bt-|58|80|p50|p58|q2|ql|gp-|mht|goojprt|munbyn|niimbot|phomemo|sunmi|iware|rongta|hoin|zjiang',
           caseSensitive: false)
       .hasMatch(d.name);
 
@@ -171,18 +200,28 @@ class _PrinterSheetState extends State<_PrinterSheet> {
     final err = await btConnect(d.address);
     if (!mounted) return;
     setState(() => _connecting = null);
-    if (err != null) {
-      setState(() => _error = err);
-      return;
-    }
+    // On mémorise l'imprimante même si la 1re connexion échoue : elle sera retentée à l'impression.
     s.printer
       ..btAddress = d.address
       ..btName = d.name.isEmpty ? d.address : d.name;
     await s.savePrinter();
+    if (err != null) {
+      setState(() => _error = err);
+      return;
+    }
     if (mounted) {
       snack(context, 'Imprimante « ${s.printer.btName} » connectée');
       Navigator.pop(context);
     }
+  }
+
+  Future<void> _calibrate() async {
+    setState(() => _calibrating = true);
+    final err = await btSend(s.printer.btAddress!, buildTsplCalibrate());
+    if (!mounted) return;
+    setState(() => _calibrating = false);
+    snack(context, err ?? 'Calibrage lancé : l’imprimante avance quelques étiquettes pour mesurer leur taille.',
+        error: err != null);
   }
 
   @override
@@ -206,18 +245,32 @@ class _PrinterSheetState extends State<_PrinterSheet> {
           _Steps(),
           const SizedBox(height: 10),
           if (_loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
-          if (!_loading && !_btOn)
+          if (!_loading && _permMissing)
+            _Notice(
+              color: EColors.red,
+              icon: Icons.lock_outline,
+              text: _permBlocked
+                  ? 'Autorisation « Appareils à proximité » bloquée. Ouvrez les autorisations d’ETIKPRO › Appareils à proximité › Autoriser.'
+                  : 'ETIKPRO a besoin de l’autorisation « Appareils à proximité » pour voir l’imprimante.',
+              action: _permBlocked ? 'Autorisations' : 'Autoriser',
+              onTap: () async {
+                if (_permBlocked) {
+                  await btOpenAppPermissions();
+                } else {
+                  await _load();
+                }
+              },
+            ),
+          if (!_loading && !_permMissing && _btOn == false && _devices.isEmpty)
             _Notice(
               color: EColors.red,
               icon: Icons.bluetooth_disabled,
-              text: 'Le Bluetooth est désactivé.',
-              action: 'Activer',
-              onTap: () async {
-                await btOpenSystemSettings();
-              },
+              text: 'Le Bluetooth semble éteint.',
+              action: 'Réglages',
+              onTap: btOpenSystemSettings,
             ),
           if (_error != null) _Notice(color: EColors.red, icon: Icons.error_outline, text: _error!),
-          if (!_loading && _btOn && _devices.isEmpty)
+          if (!_loading && !_permMissing && _devices.isEmpty && _btOn != false)
             const _Notice(
               color: EColors.orange,
               icon: Icons.info_outline,
@@ -225,7 +278,7 @@ class _PrinterSheetState extends State<_PrinterSheet> {
             ),
           if (!_loading)
             ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .42),
+              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .4),
               child: ListView(shrinkWrap: true, children: [
                 for (final d in sorted)
                   Card(
@@ -237,15 +290,13 @@ class _PrinterSheetState extends State<_PrinterSheet> {
                       subtitle: Text(d.address),
                       trailing: _connecting == d.address
                           ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                          : (s.printer.btAddress == d.address
-                              ? const Chip(
-                                  label: Text('Choisie'),
-                                  avatar: Icon(Icons.check, size: 16, color: EColors.green))
-                              : FilledButton(
-                                  onPressed: _connecting == null ? () => _choose(d) : null,
-                                  style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
-                                  child: const Text('Connecter'))),
+                          : FilledButton(
+                              onPressed: _connecting == null ? () => _choose(d) : null,
+                              style: FilledButton.styleFrom(
+                                  backgroundColor:
+                                      s.printer.btAddress == d.address ? EColors.green : EColors.blue,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
+                              child: Text(s.printer.btAddress == d.address ? 'Reconnecter' : 'Connecter')),
                       onTap: _connecting == null ? () => _choose(d) : null,
                     ),
                   ),
@@ -253,21 +304,37 @@ class _PrinterSheetState extends State<_PrinterSheet> {
             ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: () async {
-              await btOpenSystemSettings();
-            },
+            onPressed: btOpenSystemSettings,
             icon: const Icon(Icons.add_link),
             label: const Text('Appairer une nouvelle imprimante'),
           ),
           if (s.printer.btAddress != null) ...[
             const SizedBox(height: 8),
-            FilledButton.icon(
-              onPressed: () async {
-                final err = await printTestLabel();
-                if (context.mounted) snack(context, err ?? 'Étiquette de test envoyée', error: err != null);
-              },
-              icon: const Icon(Icons.print),
-              label: const Text('Imprimer une étiquette de test'),
+            Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final err = await printTestLabel();
+                    if (context.mounted) snack(context, err ?? 'Étiquette de test envoyée', error: err != null);
+                  },
+                  icon: const Icon(Icons.print),
+                  label: const Text('Test'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _calibrating ? null : _calibrate,
+                  icon: const Icon(Icons.straighten),
+                  label: const Text('Calibrer'),
+                ),
+              ),
+            ]),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                  '« Calibrer » (imprimantes d’étiquettes) : l’imprimante mesure la taille réelle de vos étiquettes et l’espace entre elles.',
+                  style: TextStyle(fontSize: 11.5, color: Colors.blueGrey.shade600)),
             ),
           ],
         ]),
@@ -285,9 +352,10 @@ class _Steps extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Text(
-          '1. Allumez l’imprimante.\n'
-          '2. Si elle n’apparaît pas : « Appairer une nouvelle imprimante » (code souvent 0000 ou 1234).\n'
-          '3. Revenez ici et touchez « Connecter ».',
+          '1. Allumez le Bluetooth du téléphone et l’imprimante.\n'
+          '2. Autorisez « Appareils à proximité » si le téléphone le demande.\n'
+          '3. Si l’imprimante n’apparaît pas : « Appairer une nouvelle imprimante » (code souvent 0000 ou 1234), puis revenez ici.\n'
+          '4. Touchez « Connecter ».',
           style: TextStyle(fontSize: 13, height: 1.4),
         ),
       );
@@ -320,8 +388,7 @@ class _Notice extends StatelessWidget {
 
 Future<String?> printTestLabel() async {
   final s = AppStore.I;
-  final f = builtinLabelFormats.firstWhere((e) => e.id == s.printer.defaultFormatId,
-      orElse: () => builtinLabelFormats[1]);
+  final f = s.formatById(s.printer.defaultFormatId);
   final now = DateTime.now();
   return printLabelBluetooth(
     data: LabelData(
@@ -427,3 +494,148 @@ class _RoundBtn extends StatelessWidget {
         child: IconButton(onPressed: onTap, icon: Icon(icon, color: Colors.white)),
       );
 }
+
+/// Choix du format d'étiquette, avec création d'une taille personnalisée.
+class FormatPicker extends StatelessWidget {
+  final String value;
+  final ValueChanged<LabelFormat> onChanged;
+  final bool allowA4;
+  const FormatPicker({super.key, required this.value, required this.onChanged, this.allowA4 = true});
+
+  static const _custom = '__custom__';
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppStore.I;
+    final formats = s.labelFormats.where((f) => allowA4 || f.mode != PrintMode.a4).toList();
+    final current = formats.any((f) => f.id == value) ? value : formats.first.id;
+    return DropdownButtonFormField<String>(
+      key: ValueKey('fmt$current${formats.length}'),
+      initialValue: current,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'Taille de l’étiquette', prefixIcon: Icon(Icons.straighten)),
+      items: [
+        const DropdownMenuItem(
+          value: _custom,
+          child: Text('➕ Taille personnalisée…',
+              style: TextStyle(fontWeight: FontWeight.w800, color: EColors.orange)),
+        ),
+        for (final f in formats)
+          DropdownMenuItem(
+            value: f.id,
+            child: Text(f.name,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: f.id.startsWith('perso_') ? FontWeight.w800 : null)),
+          ),
+      ],
+      onChanged: (v) async {
+        if (v == _custom) {
+          final f = await editCustomFormat(context);
+          if (f != null) {
+            await s.saveCustomFormat(f);
+            onChanged(f);
+          } else {
+            onChanged(s.formatById(current));
+          }
+          return;
+        }
+        final f = s.formatById(v!);
+        s.printer.defaultFormatId = f.id;
+        await s.savePrinter();
+        onChanged(f);
+      },
+    );
+  }
+}
+
+/// Boîte de création / modification d'une taille d'étiquette.
+Future<LabelFormat?> editCustomFormat(BuildContext context, [LabelFormat? f]) {
+  final w = TextEditingController(text: f == null ? '' : _n(f.widthMm));
+  final h = TextEditingController(text: f == null ? '' : _n(f.heightMm));
+  var ticket = f?.mode == PrintMode.escpos;
+  String? err;
+  return showDialog<LabelFormat>(
+    context: context,
+    builder: (c) => StatefulBuilder(
+      builder: (c, set) => AlertDialog(
+        title: const Text('Taille personnalisée'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                'Mesurez UNE étiquette avec une règle (l’étiquette seule, sans le papier de support).',
+                style: TextStyle(color: Colors.blueGrey.shade700),
+              ),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: w,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Largeur', suffixText: 'mm'),
+                  ),
+                ),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('×', style: TextStyle(fontSize: 20))),
+                Expanded(
+                  child: TextField(
+                    controller: h,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Hauteur', suffixText: 'mm'),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Étiquettes'), icon: Icon(Icons.label_outline)),
+                  ButtonSegment(value: true, label: Text('Ticket 58/80'), icon: Icon(Icons.receipt_long)),
+                ],
+                selected: {ticket},
+                onSelectionChanged: (v) => set(() => ticket = v.first),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                ticket
+                    ? 'Rouleau continu (imprimante de tickets ESC/POS).'
+                    : 'Étiquettes prédécoupées (imprimante d’étiquettes TSPL : Xprinter, HPRT…).',
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600),
+              ),
+              if (err != null) ...[
+                const SizedBox(height: 8),
+                Text(err!, style: const TextStyle(color: EColors.red, fontWeight: FontWeight.w700)),
+              ],
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () {
+              final wv = parseNum(w.text), hv = parseNum(h.text);
+              final maxW = ticket ? 72.0 : 110.0;
+              if (wv < 10 || hv < 8 || wv > maxW || hv > 200) {
+                set(() => err = 'Largeur entre 10 et ${maxW.round()} mm, hauteur entre 8 et 200 mm.');
+                return;
+              }
+              Navigator.pop(
+                c,
+                LabelFormat(
+                  id: f?.id ?? 'perso_${_n(wv)}x${_n(hv)}_${ticket ? 'pos' : 'tspl'}',
+                  name: 'Perso ${_n(wv)} × ${_n(hv)} mm${ticket ? ' (ticket)' : ''}',
+                  widthMm: wv,
+                  heightMm: hv,
+                  mode: ticket ? PrintMode.escpos : PrintMode.tspl,
+                ),
+              );
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String _n(double v) => v == v.roundToDouble() ? '${v.toInt()}' : v.toStringAsFixed(1).replaceAll('.', ',');

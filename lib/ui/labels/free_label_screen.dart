@@ -49,7 +49,7 @@ class _FreeLabelScreenState extends State<FreeLabelScreen> {
       s.company.labelLogoB64 == null ? null : base64Decode(s.company.labelLogoB64!);
 
   LabelFormat get _format =>
-      builtinLabelFormats.firstWhere((f) => f.id == _formatId, orElse: () => builtinLabelFormats[1]);
+      s.formatById(_formatId);
 
   static const _key = 'freeLabels';
 
@@ -304,16 +304,7 @@ class _FreeLabelScreenState extends State<FreeLabelScreen> {
         ]),
       ),
       const SizedBox(height: 12),
-      DropdownButtonFormField<String>(
-        initialValue: _formatId,
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: 'Format'),
-        items: [
-          for (final f in builtinLabelFormats)
-            DropdownMenuItem(value: f.id, child: Text(f.name, overflow: TextOverflow.ellipsis)),
-        ],
-        onChanged: (v) => setState(() => _formatId = v!),
-      ),
+      FormatPicker(value: _formatId, onChanged: (f) => setState(() => _formatId = f.id)),
       const SizedBox(height: 12),
       QuantityPicker(
         value: _copies,

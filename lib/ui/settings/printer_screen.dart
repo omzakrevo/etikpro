@@ -60,18 +60,37 @@ class _PrinterScreenState extends State<PrinterScreen> {
                 ),
             ]),
           ],
-          const SectionTitle('Format par défaut'),
-          DropdownButtonFormField<String>(
-            initialValue: p.defaultFormatId,
-            isExpanded: true,
-            items: [
-              for (final f in builtinLabelFormats) DropdownMenuItem(value: f.id, child: Text(f.name)),
-            ],
-            onChanged: (v) {
-              p.defaultFormatId = v!;
-              s.savePrinter();
-            },
-          ),
+          const SectionTitle('Taille d’étiquette par défaut'),
+          FormatPicker(value: p.defaultFormatId, onChanged: (_) => setState(() {})),
+          if (p.customFormats.isNotEmpty) ...[
+            const SectionTitle('Mes tailles personnalisées'),
+            for (final f in p.customFormats)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.straighten, color: EColors.orange),
+                  title: Text(f.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () async {
+                        final n = await editCustomFormat(context, f);
+                        if (n != null) {
+                          await s.saveCustomFormat(n);
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        await s.deleteCustomFormat(f.id);
+                        setState(() {});
+                      },
+                    ),
+                  ]),
+                ),
+              ),
+          ],
           const SectionTitle('Réglages fins (imprimantes d’étiquettes TSPL)'),
           _slider('Densité (noirceur)', p.density.toDouble(), 1, 15, (v) => p.density = v.round()),
           _slider('Vitesse', p.speed.toDouble(), 1, 6, (v) => p.speed = v.round()),

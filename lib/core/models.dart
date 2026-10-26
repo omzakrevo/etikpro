@@ -532,11 +532,20 @@ class LabelFormat {
 }
 
 const builtinLabelFormats = <LabelFormat>[
+  LabelFormat(id: 'tspl_25x15', name: 'Étiquette 25 × 15 mm', widthMm: 25, heightMm: 15, mode: PrintMode.tspl),
+  LabelFormat(id: 'tspl_30x15', name: 'Étiquette 30 × 15 mm', widthMm: 30, heightMm: 15, mode: PrintMode.tspl),
+  LabelFormat(id: 'tspl_30x20', name: 'Étiquette 30 × 20 mm', widthMm: 30, heightMm: 20, mode: PrintMode.tspl),
+  LabelFormat(id: 'tspl_35x25', name: 'Étiquette 35 × 25 mm', widthMm: 35, heightMm: 25, mode: PrintMode.tspl),
+  LabelFormat(id: 'tspl_40x20', name: 'Étiquette 40 × 20 mm', widthMm: 40, heightMm: 20, mode: PrintMode.tspl),
+  LabelFormat(id: 'tspl_40x25', name: 'Étiquette 40 × 25 mm', widthMm: 40, heightMm: 25, mode: PrintMode.tspl),
+  LabelFormat(id: 'tspl_50x20', name: 'Étiquette 50 × 20 mm', widthMm: 50, heightMm: 20, mode: PrintMode.tspl),
+  LabelFormat(id: 'tspl_50x25', name: 'Étiquette 50 × 25 mm', widthMm: 50, heightMm: 25, mode: PrintMode.tspl),
   LabelFormat(id: 'tspl_40x30', name: 'Étiquette 40 × 30 mm', widthMm: 40, heightMm: 30, mode: PrintMode.tspl),
   LabelFormat(id: 'tspl_50x30', name: 'Étiquette 50 × 30 mm', widthMm: 50, heightMm: 30, mode: PrintMode.tspl),
   LabelFormat(id: 'tspl_50x40', name: 'Étiquette 50 × 40 mm', widthMm: 50, heightMm: 40, mode: PrintMode.tspl),
   LabelFormat(id: 'tspl_60x40', name: 'Étiquette 60 × 40 mm', widthMm: 60, heightMm: 40, mode: PrintMode.tspl),
   LabelFormat(id: 'tspl_70x50', name: 'Étiquette 70 × 50 mm', widthMm: 70, heightMm: 50, mode: PrintMode.tspl),
+  LabelFormat(id: 'pos_58_court', name: 'Ticket 58 mm (court, 20 mm)', widthMm: 48, heightMm: 20, mode: PrintMode.escpos),
   LabelFormat(id: 'pos_58', name: 'Ticket 58 mm', widthMm: 48, heightMm: 34, mode: PrintMode.escpos),
   LabelFormat(id: 'pos_80', name: 'Ticket 80 mm', widthMm: 72, heightMm: 40, mode: PrintMode.escpos),
   LabelFormat(id: 'a4_24', name: 'Planche A4 – 24 (70 × 37 mm)', widthMm: 70, heightMm: 37, mode: PrintMode.a4, cols: 3, rows: 8, sheetMarginTopMm: 0.5, sheetMarginLeftMm: 0),
@@ -555,6 +564,7 @@ class PrinterSettings {
   int speed; // 1..6
   double gapMm;
   int threshold; // seuil noir/blanc 0..255
+  List<LabelFormat> customFormats; // tailles personnalisées
 
   PrinterSettings({
     this.btAddress,
@@ -565,7 +575,8 @@ class PrinterSettings {
     this.speed = 4,
     this.gapMm = 2,
     this.threshold = 160,
-  });
+    List<LabelFormat>? customFormats,
+  }) : customFormats = customFormats ?? [];
 
   Map<String, dynamic> toJson() => {
         'btAddress': btAddress,
@@ -576,6 +587,7 @@ class PrinterSettings {
         'speed': speed,
         'gapMm': gapMm,
         'threshold': threshold,
+        'customFormats': customFormats.map((e) => e.toJson()).toList(),
       };
 
   factory PrinterSettings.fromJson(Map<String, dynamic> j) => PrinterSettings(
@@ -587,6 +599,9 @@ class PrinterSettings {
         speed: _i(j['speed'], 4),
         gapMm: _d(j['gapMm'], 2),
         threshold: _i(j['threshold'], 160),
+        customFormats: ((j['customFormats'] as List?) ?? [])
+            .map((e) => LabelFormat.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
       );
 }
 
