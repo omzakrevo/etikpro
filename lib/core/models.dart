@@ -558,6 +558,8 @@ const builtinLabelFormats = <LabelFormat>[
 class PrinterSettings {
   String? btAddress;
   String? btName;
+  bool btBle; // imprimante Bluetooth Low Energy
+  String language; // auto | tspl (étiquettes) | escpos (tickets)
   String defaultFormatId;
   bool invertTspl; // certaines imprimantes TSPL inversent noir/blanc
   int density; // 1..15
@@ -569,6 +571,8 @@ class PrinterSettings {
   PrinterSettings({
     this.btAddress,
     this.btName,
+    this.btBle = false,
+    this.language = 'auto',
     this.defaultFormatId = 'tspl_50x30',
     this.invertTspl = false,
     this.density = 8,
@@ -581,6 +585,8 @@ class PrinterSettings {
   Map<String, dynamic> toJson() => {
         'btAddress': btAddress,
         'btName': btName,
+        'btBle': btBle,
+        'language': language,
         'defaultFormatId': defaultFormatId,
         'invertTspl': invertTspl,
         'density': density,
@@ -593,6 +599,8 @@ class PrinterSettings {
   factory PrinterSettings.fromJson(Map<String, dynamic> j) => PrinterSettings(
         btAddress: j['btAddress'],
         btName: j['btName'],
+        btBle: j['btBle'] == true,
+        language: j['language'] ?? 'auto',
         defaultFormatId: j['defaultFormatId'] ?? 'tspl_50x30',
         invertTspl: j['invertTspl'] == true,
         density: _i(j['density'], 8),

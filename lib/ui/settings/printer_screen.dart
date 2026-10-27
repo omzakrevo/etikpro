@@ -51,7 +51,8 @@ class _PrinterScreenState extends State<PrinterScreen> {
                     await btDisconnect();
                     p
                       ..btAddress = null
-                      ..btName = null;
+                      ..btName = null
+                      ..btBle = false;
                     await s.savePrinter();
                     setState(() {});
                   },

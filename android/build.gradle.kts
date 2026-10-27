@@ -16,6 +16,14 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
+    // Tous les modules (plugins) compilés avec le même SDK Android récent
+    afterEvaluate {
+        extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)?.apply {
+            compileSdk = 37
+        }
+    }
+}
+subprojects {
     project.evaluationDependsOn(":app")
 }
 

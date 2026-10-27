@@ -11,8 +11,13 @@ class MonoBitmap {
   int get widthBytes => (width + 7) ~/ 8;
 
   /// Convertit des pixels RGBA en monochrome (seuil sur la luminance).
-  factory MonoBitmap.fromRgba(Uint8List rgba, int width, int height,
-      {int threshold = 160, int? targetWidth}) {
+  factory MonoBitmap.fromRgba(
+    Uint8List rgba,
+    int width,
+    int height, {
+    int threshold = 160,
+    int? targetWidth,
+  }) {
     final outW = targetWidth ?? width;
     final wb = (outW + 7) ~/ 8;
     final out = Uint8List(wb * height);
@@ -21,9 +26,7 @@ class MonoBitmap {
         final i = (y * width + x) * 4;
         final a = rgba[i + 3];
         // Pixel transparent = blanc
-        final lum = a < 128
-            ? 255
-            : (rgba[i] * 299 + rgba[i + 1] * 587 + rgba[i + 2] * 114) ~/ 1000;
+        final lum = a < 128 ? 255 : (rgba[i] * 299 + rgba[i + 1] * 587 + rgba[i + 2] * 114) ~/ 1000;
         if (lum < threshold) {
           out[y * wb + (x >> 3)] |= (0x80 >> (x & 7));
         }
@@ -62,8 +65,7 @@ List<int> buildTspl(
   int speed = 4,
   bool invert = false,
 }) {
-  String n(double v) =>
-      v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+  String n(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
   final out = BytesBuilder();
   void cmd(String s) => out.add(ascii.encode('$s\r\n'));
   cmd('SIZE ${n(widthMm)} mm,${n(heightMm)} mm');
