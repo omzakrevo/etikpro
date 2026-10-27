@@ -123,7 +123,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Center(
-              child: Text('ETIKPRO 1.2 — OMZAKREVO INFORMATIQUE\nToujours une solution !',
+              child: Text('ETIKPRO 1.2.1 — OMZAKREVO INFORMATIQUE\nToujours une solution !',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12)),
             ),
